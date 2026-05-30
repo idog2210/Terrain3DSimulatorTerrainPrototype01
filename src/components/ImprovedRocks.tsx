@@ -21,7 +21,11 @@ interface Placement {
   rotation: [number, number, number];
   scale: [number, number, number];
   color: THREE.Color;
+  /** Lighter, near-neutral tint used when a real rock albedo texture is present. */
+  texColor: THREE.Color;
 }
+
+const ROCK_TINT = new THREE.Color(0.72, 0.7, 0.66);
 
 function mulberry32(seed: number) {
   let a = seed;
@@ -91,12 +95,16 @@ function buildPlacements(): Placement[] {
       const y = getHeight(ox, oz) - sy * 0.42; // sunk in
       const shade = 0.3 + rng() * 0.16;
       const warm = 0.92 + rng() * 0.12;
+      const color = new THREE.Color(shade * warm, shade * 0.97, shade * 0.86);
+      // Keep a little per-rock variation, but lifted so the albedo texture shows.
+      const texColor = color.clone().lerp(ROCK_TINT, 0.55);
       out.push({
         variant: Math.floor(rng() * VARIANTS),
         position: [ox, y, oz],
         rotation: [rng() * Math.PI, rng() * Math.PI, rng() * Math.PI],
         scale: [sx, sy, sz],
-        color: new THREE.Color(shade * warm, shade * 0.97, shade * 0.86),
+        color,
+        texColor,
       });
     }
   }
@@ -115,6 +123,7 @@ export default function ImprovedRocks() {
     [geometries, placements],
   );
   const flat = !rockTex?.normalMap;
+  const hasAlbedo = !!(rockTex && rockTex.map);
 
   return (
     <group>
@@ -136,7 +145,13 @@ export default function ImprovedRocks() {
             roughnessMap={rockTex?.roughnessMap}
           />
           {byVariant[gi].map((r, i) => (
-            <Instance key={i} position={r.position} rotation={r.rotation} scale={r.scale} color={r.color} />
+            <Instance
+              key={i}
+              position={r.position}
+              rotation={r.rotation}
+              scale={r.scale}
+              color={hasAlbedo ? r.texColor : r.color}
+            />
           ))}
         </Instances>
       ))}
