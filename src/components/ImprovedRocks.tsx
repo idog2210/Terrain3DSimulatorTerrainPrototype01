@@ -129,7 +129,9 @@ export default function ImprovedRocks() {
     <group>
       {geometries.map((geo, gi) => (
         <Instances
-          key={gi}
+          // Remount when textures resolve so the material compiles WITH the maps
+          // (R3F does not recompile a material when its `map` prop changes post-mount).
+          key={gi + (hasAlbedo ? '-tex' : '-proc')}
           geometry={geo}
           limit={Math.max(1, byVariant[gi].length)}
           castShadow
