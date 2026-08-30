@@ -66,7 +66,7 @@ const MAP_BREAKUP = /* glsl */ `
   ) + 0.5 + vec2(37.2, 11.7);
   vec4 sampledDiffuseColorA = texture2D( map, uvA );
   vec4 sampledDiffuseColorB = texture2D( map, uvB );
-  float blendN = tFbm(vWPos.xz * 0.015 + 100.0);
+  float blendN = tFbm(vWPos.xz * 0.2 + 100.0);
   vec4 sampledDiffuseColor = mix(sampledDiffuseColorA, sampledDiffuseColorB, smoothstep(0.35, 0.65, blendN));
   diffuseColor *= sampledDiffuseColor;
 #endif

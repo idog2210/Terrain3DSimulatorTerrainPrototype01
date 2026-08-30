@@ -75,7 +75,7 @@ function build(): { pebbles: Item[]; blades: Item[]; debris: Item[] } {
     }
 
     // Dry-grass tufts: flatter low/mid grassy ground, lusher near the stream.
-    if (blades.length < 540 && slope < 0.22 && h > -6 && h < 18 && rng() < 0.34) {
+    if (blades.length < 540 && slope < 0.22 && h > -30 && h < 18 && rng() < 0.34) {
       const tuft = 3 + Math.floor(rng() * 3);
       for (let b = 0; b < tuft && blades.length < 540; b++) {
         const bx = x + (rng() * 2 - 1) * 0.5;

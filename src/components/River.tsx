@@ -20,6 +20,14 @@ function smoothstep01(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
+// Vertical clearance above the highest sampled terrain point of a rib's
+// cross-section, so the flat water plane clears the fine-noise bumps in the
+// terrain bed (see final-review-report.md #4). 0.5 (top of the report's
+// suggested 0.3-0.5 range) was chosen from a numeric sweep against the real
+// getHeight() profile along STREAM_PATH: it cuts bed intrusions from 79/85
+// ribs (worst 0.80 m) down to ~10/85 ribs (worst ~0.32 m).
+const WATER_CLEARANCE = 0.5;
+
 function buildRiverGeometry(): THREE.BufferGeometry {
   const controlPoints = STREAM_PATH.map(([x, z]) => new THREE.Vector3(x, 0, z));
   const curve = new THREE.CatmullRomCurve3(controlPoints, false, 'catmullrom', 0.4);
@@ -27,9 +35,71 @@ function buildRiverGeometry(): THREE.BufferGeometry {
 
   const centers: THREE.Vector3[] = [];
   for (let i = 0; i <= steps; i++) {
-    const p = curve.getPoint(i / steps);
-    p.y = getHeight(p.x, p.z) + 0.08;
-    centers.push(p);
+    centers.push(curve.getPoint(i / steps));
+  }
+
+  // Per-rib tangent/normal/half-width, computed from the (x, z) centerline
+  // only — independent of the height values resolved below.
+  const normals: THREE.Vector3[] = [];
+  const halfWidths: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const prev = centers[Math.max(0, i - 1)];
+    const next = centers[Math.min(steps, i + 1)];
+    const tangent = new THREE.Vector3().subVectors(next, prev);
+    tangent.y = 0;
+    if (tangent.lengthSq() < 1e-8) tangent.set(1, 0, 0);
+    tangent.normalize();
+    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
+    normals.push(normal);
+
+    const taper = smoothstep01(0, 0.06, t) * (1 - smoothstep01(0.94, 1, t));
+    halfWidths.push((BASE_WIDTH * 0.5) * Math.max(0.05, taper));
+  }
+
+  // Height per rib: sample the terrain at the centerline AND both edges of
+  // the cross-section, and clear the highest of the three — a flat plane at
+  // only the centerline height gets poked through by the terrain's
+  // fine-noise bumps well before it reaches the banks.
+  const heights: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const p = centers[i];
+    const normal = normals[i];
+    const hw = halfWidths[i];
+    const hCenter = getHeight(p.x, p.z);
+    const hLeft = getHeight(p.x + normal.x * hw, p.z + normal.z * hw);
+    const hRight = getHeight(p.x - normal.x * hw, p.z - normal.z * hw);
+    heights.push(Math.max(hCenter, hLeft, hRight) + WATER_CLEARANCE);
+  }
+
+  // Smooth along the flow direction to damp residual fine-noise bumps
+  // between neighboring ribs.
+  //
+  // NOTE on the "never run uphill" requirement (final-review-report.md #4):
+  // a strict monotone-non-increasing downstream pass was evaluated
+  // numerically against the real terrain profile and deliberately NOT
+  // applied here. STREAM_PATH's endpoints go from high ground (z=-62,
+  // h~14) to low ground (z=99, h~-19), but the terrain in between is not
+  // monotonic — it dips into the broad valley basin around the path's
+  // midpoint (h~-27) and then climbs back out ~9 m before the path ends.
+  // A forward running-min clamp (the report's literal suggestion) locks
+  // the whole back half of the river at the basin's lowest point, which
+  // reintroduces bed intrusions up to ~9 m where the recovering terrain
+  // rises above that clamped plane — far worse than the defect being
+  // fixed. A backward running-max (the only way to also kill intrusions)
+  // instead floats the water up to ~8.8 m above the ground over a ~30 m
+  // stretch of the basin. Both were measured and rejected; see
+  // final-fix-report.md for the numbers. The clearance + three-point
+  // cross-section sampling + this local smoothing pass below already cut
+  // bed intrusions by ~90% (79/85 ribs -> ~10/85, worst 0.80 m -> ~0.32 m)
+  // without either failure mode, so that's what ships.
+  const smoothed = heights.map((h, i) => {
+    const prev = heights[Math.max(0, i - 1)];
+    const next = heights[Math.min(steps, i + 1)];
+    return (prev + h + next) / 3;
+  });
+  for (let i = 0; i <= steps; i++) {
+    centers[i].y = smoothed[i];
   }
 
   const positions: number[] = [];
@@ -39,16 +109,8 @@ function buildRiverGeometry(): THREE.BufferGeometry {
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
     const p = centers[i];
-    const prev = centers[Math.max(0, i - 1)];
-    const next = centers[Math.min(steps, i + 1)];
-    const tangent = new THREE.Vector3().subVectors(next, prev);
-    tangent.y = 0;
-    if (tangent.lengthSq() < 1e-8) tangent.set(1, 0, 0);
-    tangent.normalize();
-    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
-
-    const taper = smoothstep01(0, 0.06, t) * (1 - smoothstep01(0.94, 1, t));
-    const halfWidth = (BASE_WIDTH * 0.5) * Math.max(0.05, taper);
+    const normal = normals[i];
+    const halfWidth = halfWidths[i];
 
     const left = p.clone().addScaledVector(normal, halfWidth);
     const right = p.clone().addScaledVector(normal, -halfWidth);
@@ -58,7 +120,7 @@ function buildRiverGeometry(): THREE.BufferGeometry {
     if (i > 0) {
       const a = (i - 1) * 2;
       const b = i * 2;
-      indices.push(a, a + 1, b, a + 1, b + 1, b);
+      indices.push(a, b, a + 1, a + 1, b, b + 1);
     }
   }
 
@@ -87,6 +149,7 @@ function createWaterMaterial(): THREE.MeshStandardMaterial {
     roughness: 0.18,
     metalness: 0.05,
     transparent: true,
+    side: THREE.DoubleSide,
   });
 
   material.onBeforeCompile = (shader) => {
@@ -108,8 +171,8 @@ function createWaterMaterial(): THREE.MeshStandardMaterial {
 {
   float rip = wNoise(vWaterUv * vec2(3.0, 26.0) + vec2(uTime * 0.12, uTime * 0.55));
   float rip2 = wNoise(vWaterUv * vec2(5.0, 14.0) - vec2(uTime * 0.08, uTime * 0.4));
-  normal.xz += (vec2(rip, rip2) - 0.5) * 0.12;
-  normal = normalize(normal);
+  vec2 offset = (vec2(rip, rip2) - 0.5) * 0.12;
+  normal = normalize(normal + normalMatrix * vec3(offset.x, 0.0, offset.y));
 }`,
       )
       .replace(

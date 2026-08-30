@@ -71,7 +71,7 @@ function buildPlacements(): Placement[] {
 
     if (distToStream(x, z) < 3.2) continue; // not in the water
     if (slope > 0.35 || boost > 0.3) continue; // not on steep faces or rocky zones
-    if (h < -4 || h > 30) continue; // stay in the grassy/earth elevation band
+    if (h < -30 || h > 30) continue; // stay in the grassy/earth elevation band (widened to include the valley floor)
 
     const density = 0.16 + moist * 0.55; // denser riparian clustering near the stream
     if (rng() > density) continue;
