@@ -7,6 +7,7 @@ import {
   terrainColor,
   slopeHeatColor,
   colorTint,
+  moisture01,
 } from '../utils/terrainHeight';
 import { CONCEPTS_BY_ID } from '../data/terrainConcepts';
 import { createAdvancedTerrainMaterial } from '../utils/advancedTerrainMaterial';
@@ -55,7 +56,12 @@ export default function ProceduralTerrain() {
       const y = pos.getY(i);
       const ny = nrm.getY(i);
       const slope01 = Math.acos(ny < -1 ? -1 : ny > 1 ? 1 : ny) / (Math.PI / 2);
-      const cn = terrainColor(y, slope01, colorTint(pos.getX(i), pos.getZ(i)));
+      const cn = terrainColor(
+        y,
+        slope01,
+        colorTint(pos.getX(i), pos.getZ(i)),
+        moisture01(pos.getX(i), pos.getZ(i)),
+      );
       tmp.setRGB(cn.r, cn.g, cn.b, THREE.SRGBColorSpace);
       nat[o] = tmp.r;
       nat[o + 1] = tmp.g;

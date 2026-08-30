@@ -40,7 +40,7 @@ const OUTCROP = { x: 46, z: 52 };
 
 // Dry stream channel: meanders from below the saddle, down the valley, past the
 // viewer — a leading line drawing the eye into the distance.
-const STREAM_PATH: ReadonlyArray<readonly [number, number]> = [
+export const STREAM_PATH: ReadonlyArray<readonly [number, number]> = [
   [-2, -62],
   [2, -38],
   [6, -10],
@@ -102,7 +102,7 @@ function distSqToSegment(
   return dx * dx + dz * dz;
 }
 
-function distToStream(x: number, z: number): number {
+export function distToStream(x: number, z: number): number {
   let best = Infinity;
   for (let i = 0; i < STREAM_PATH.length - 1; i++) {
     const a = STREAM_PATH[i];
@@ -119,6 +119,18 @@ function streamCarve(x: number, z: number): number {
   const d = distToStream(x, z);
   const w = 6.5;
   return 5 * Math.exp(-(d * d) / (2 * w * w));
+}
+
+/**
+ * Proxy for ground moisture in [0,1]: 1 at the stream centerline, falling
+ * off smoothly with distance. Shared driver for river placement, tree
+ * density, and the biome tint in `terrainColor` — everything that should
+ * read as "closer to water" uses this one field.
+ */
+export function moisture01(x: number, z: number): number {
+  const d = distToStream(x, z);
+  const w = 14;
+  return Math.exp(-(d * d) / (2 * w * w));
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +254,7 @@ const PALETTE = {
   earth: { r: 0.48, g: 0.4, b: 0.27 }, // warm tan upland earth
   rock: { r: 0.43, g: 0.43, b: 0.42 }, // neutral muted grey rock
   highRock: { r: 0.6, g: 0.59, b: 0.57 }, // sun-bleached high rock
+  riparian: { r: 0.28, g: 0.36, b: 0.22 }, // lush damp ground near the stream
 } as const;
 
 function mix(a: RGB, b: RGB, t: number): RGB {
@@ -258,7 +271,12 @@ export function colorTint(x: number, z: number): number {
  * Zones: dark drainage soil (low) → dry grass/earth (mid) → exposed rock
  * (high & steep). Bands are tuned to the art-directed elevation range.
  */
-export function terrainColor(height: number, slope01: number, tint = 0.5): RGB {
+export function terrainColor(
+  height: number,
+  slope01: number,
+  tint = 0.5,
+  moisture = 0,
+): RGB {
   const h = height + (tint - 0.5) * 9;
   let c: RGB;
   if (h < -6) {
@@ -272,6 +290,8 @@ export function terrainColor(height: number, slope01: number, tint = 0.5): RGB {
   }
   const v = 0.93 + tint * 0.14;
   c = { r: c.r * v, g: c.g * v, b: c.b * v };
+  // Riparian moisture tint: greener, damper ground near the stream.
+  c = mix(c, PALETTE.riparian, moisture * 0.32);
   // Steep ground exposes rock.
   const rockBlend = smoothstep(0.4, 0.7, slope01);
   c = mix(c, PALETTE.rock, rockBlend * 0.9);
