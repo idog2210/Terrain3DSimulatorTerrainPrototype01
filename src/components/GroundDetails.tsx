@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { Instances, Instance } from '@react-three/drei';
-import { getHeight, getSlope01, HALF, ROCK_ZONES } from '../utils/terrainHeight';
+import { getHeight, getSlope01, HALF, ROCK_ZONES, moisture01 } from '../utils/terrainHeight';
 
 /**
  * Fine ground scatter that ties the rocks to the terrain and adds foreground
@@ -57,19 +57,24 @@ function build(): { pebbles: Item[]; blades: Item[]; debris: Item[] } {
     const h = getHeight(x, z);
     const boost = zoneBoost(x, z);
 
-    // Pebbles: broad, denser near rocky zones.
+    // Pebbles: broad, denser near rocky zones, mossier/darker near the stream.
     if (pebbles.length < 420 && slope < 0.6 && rng() < 0.4 + boost * 0.5) {
       const s = 0.1 + rng() * 0.24;
       const sh = 0.26 + rng() * 0.14;
+      const moist = moisture01(x, z);
       pebbles.push({
         position: [x, h - s * 0.4, z],
         rotation: [rng() * Math.PI, rng() * Math.PI, rng() * Math.PI],
         scale: [s * (0.8 + rng() * 0.5), s * (0.6 + rng() * 0.4), s * (0.8 + rng() * 0.5)],
-        color: new THREE.Color(sh, sh * 0.96, sh * 0.88),
+        color: new THREE.Color(
+          sh * (1 - moist * 0.3),
+          sh * 0.96 * (1 - moist * 0.05),
+          sh * 0.88 * (1 + moist * 0.35),
+        ),
       });
     }
 
-    // Dry-grass tufts: flatter low/mid grassy ground.
+    // Dry-grass tufts: flatter low/mid grassy ground, lusher near the stream.
     if (blades.length < 540 && slope < 0.22 && h > -6 && h < 18 && rng() < 0.34) {
       const tuft = 3 + Math.floor(rng() * 3);
       for (let b = 0; b < tuft && blades.length < 540; b++) {
@@ -77,11 +82,13 @@ function build(): { pebbles: Item[]; blades: Item[]; debris: Item[] } {
         const bz = z + (rng() * 2 - 1) * 0.5;
         const bh = 0.4 + rng() * 0.45;
         const g = 0.3 + rng() * 0.12;
+        const moist = moisture01(bx, bz);
+        const green = g * (1 + moist * 0.25);
         blades.push({
           position: [bx, getHeight(bx, bz) + bh * 0.5 - 0.05, bz],
           rotation: [(rng() - 0.5) * 0.5, rng() * Math.PI, (rng() - 0.5) * 0.5],
           scale: [1, bh, 1],
-          color: new THREE.Color(g * 0.95, g, g * 0.55),
+          color: new THREE.Color(green * 0.92, green * 1.05, green * (0.55 - moist * 0.1)),
         });
       }
     }
@@ -102,7 +109,7 @@ function build(): { pebbles: Item[]; blades: Item[]; debris: Item[] } {
 }
 
 export default function GroundDetails() {
-  const { pebbles, blades, debris } = useMemo(build, []);
+  const { pebbles, blades, debris } = useMemo(() => build(), []);
 
   return (
     <group>
