@@ -4,6 +4,7 @@ import ProceduralTerrain from './ProceduralTerrain';
 import ImprovedRocks from './ImprovedRocks';
 import GroundDetails from './GroundDetails';
 import River from './River';
+import Trees from './Trees';
 import ContourLines from './ContourLines';
 import LandformLabels from './LandformLabels';
 import TerrainMarker from './TerrainMarker';
@@ -35,6 +36,7 @@ export default function TerrainScene() {
       <ImprovedRocks />
       <GroundDetails />
       <River />
+      <Trees />
 
       <ContourLines visible={layers.contours} />
       <LandformLabels visible={layers.labels} />
