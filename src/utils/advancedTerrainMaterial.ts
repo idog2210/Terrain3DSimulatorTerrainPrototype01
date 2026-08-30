@@ -53,6 +53,25 @@ const ROUGH_BLOCK = /* glsl */ `
 }
 `;
 
+const MAP_BREAKUP = /* glsl */ `
+#ifdef USE_MAP
+  vec2 uvA = vMapUv;
+  float mrot = 2.4;
+  float mcos = cos(mrot);
+  float msin = sin(mrot);
+  vec2 mcentered = uvA - 0.5;
+  vec2 uvB = vec2(
+    mcentered.x * mcos - mcentered.y * msin,
+    mcentered.x * msin + mcentered.y * mcos
+  ) + 0.5 + vec2(37.2, 11.7);
+  vec4 sampledDiffuseColorA = texture2D( map, uvA );
+  vec4 sampledDiffuseColorB = texture2D( map, uvB );
+  float blendN = tFbm(vWPos.xz * 0.015 + 100.0);
+  vec4 sampledDiffuseColor = mix(sampledDiffuseColorA, sampledDiffuseColorB, smoothstep(0.35, 0.65, blendN));
+  diffuseColor *= sampledDiffuseColor;
+#endif
+`;
+
 export function createAdvancedTerrainMaterial(tex: PBRSet | null): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true,
@@ -83,6 +102,7 @@ export function createAdvancedTerrainMaterial(tex: PBRSet | null): THREE.MeshSta
 
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', NOISE_GLSL + VARYINGS + '#include <common>')
+      .replace('#include <map_fragment>', MAP_BREAKUP)
       .replace('#include <color_fragment>', '#include <color_fragment>\n' + COLOR_BLOCK)
       .replace(
         '#include <roughnessmap_fragment>',
@@ -90,6 +110,6 @@ export function createAdvancedTerrainMaterial(tex: PBRSet | null): THREE.MeshSta
       );
   };
 
-  material.customProgramCacheKey = () => 'advanced-terrain-v2';
+  material.customProgramCacheKey = () => 'advanced-terrain-v3';
   return material;
 }
