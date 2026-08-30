@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { Instances, Instance } from '@react-three/drei';
 import { fbm } from '../utils/noise';
-import { getHeight, getSlope01, HALF, ROCK_ZONES } from '../utils/terrainHeight';
+import { getHeight, getSlope01, HALF, ROCK_ZONES, moisture01 } from '../utils/terrainHeight';
 import { useOptionalPBR } from '../utils/useOptionalTextures';
 
 /**
@@ -78,7 +78,7 @@ function buildPlacements(): Placement[] {
     const z = (rng() * 2 - 1) * margin;
     const slope = getSlope01(x, z);
     const boost = zoneBoost(x, z);
-    let p = Math.max(0, (slope - 0.3) * 1.4) + boost * 1.15;
+    const p = Math.max(0, (slope - 0.3) * 1.4) + boost * 1.15;
     if (p <= 0.02 || rng() > p) continue;
 
     const dense = boost > 0.4;
@@ -95,7 +95,16 @@ function buildPlacements(): Placement[] {
       const y = getHeight(ox, oz) - sy * 0.42; // sunk in
       const shade = 0.3 + rng() * 0.16;
       const warm = 0.92 + rng() * 0.12;
-      const color = new THREE.Color(shade * warm, shade * 0.97, shade * 0.86);
+      let color = new THREE.Color(shade * warm, shade * 0.97, shade * 0.86);
+      // Sun-bleached on exposed rocky zones/outcrop; mossier and darker near the stream.
+      const moist = moisture01(x, z);
+      const bleach = boost * 0.18;
+      const moss = moist * 0.14;
+      color = new THREE.Color(
+        color.r * (1 + bleach - moss * 0.5),
+        color.g * (1 + bleach * 0.85 - moss * 0.15),
+        color.b * (1 + bleach * 0.7 - moss * 0.25),
+      );
       // Keep a little per-rock variation, but lifted so the albedo texture shows.
       const texColor = color.clone().lerp(ROCK_TINT, 0.55);
       out.push({
@@ -117,7 +126,7 @@ export default function ImprovedRocks() {
     () => Array.from({ length: VARIANTS }, (_, i) => makeRockGeometry(11 + i * 37)),
     [],
   );
-  const placements = useMemo(buildPlacements, []);
+  const placements = useMemo(() => buildPlacements(), []);
   const byVariant = useMemo(
     () => geometries.map((_, gi) => placements.filter((p) => p.variant === gi)),
     [geometries, placements],
