@@ -1,7 +1,7 @@
 /** Shared domain types for the terrain simulator. */
 
 /** Visualization layers that can be toggled from the UI. */
-export type LayerKey = 'contours' | 'slope' | 'labels';
+export type LayerKey = 'contours' | 'slope';
 
 /** Identifiers for the educational terrain concepts. */
 export type ConceptId =

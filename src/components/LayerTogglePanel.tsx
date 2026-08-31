@@ -14,7 +14,6 @@ export default function LayerTogglePanel() {
   const rows: { key: LayerKey; name: string; desc: string }[] = [
     { key: 'contours', name: t.layerContours, desc: t.layerContoursDesc },
     { key: 'slope', name: t.layerSlope, desc: t.layerSlopeDesc },
-    { key: 'labels', name: t.layerLabels, desc: t.layerLabelsDesc },
   ];
 
   return (

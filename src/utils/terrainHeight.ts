@@ -39,14 +39,23 @@ const VALLEY_C = { x: 4, z: 8 };
 const OUTCROP = { x: 46, z: 52 };
 
 // Dry stream channel: meanders from below the saddle, down the valley, past the
-// viewer — a leading line drawing the eye into the distance.
+// viewer — a leading line drawing the eye into the distance. More control
+// points than a minimal path so the S-bends read as an actual meander rather
+// than a nearly-straight diagonal (verified >9m clear of every ROCK_ZONES
+// entry and the outcrop below).
 export const STREAM_PATH: ReadonlyArray<readonly [number, number]> = [
   [-2, -62],
-  [2, -38],
-  [6, -10],
-  [8, 18],
-  [12, 50],
-  [16, 82],
+  [2, -50],
+  [-1, -38],
+  [6, -24],
+  [1, -10],
+  [10, 4],
+  [4, 18],
+  [14, 34],
+  [6, 50],
+  [18, 66],
+  [10, 82],
+  [16, 92],
   [20, 99],
 ];
 
@@ -147,9 +156,14 @@ export function getHeight(x: number, z: number): number {
   // Multi-scale natural relief.
   h += (fbm(x * 0.008 + 4.2, z * 0.008 - 1.7, 4) - 0.5) * 16; // large
   h += (fbm(x * 0.025 + 11, z * 0.025 - 7, 4) - 0.5) * 7; // medium
-  h += (fbm(x * 0.05 - 5, z * 0.05 + 9, 3) - 0.5) * 3.5; // secondary
-  h += (fbm(x * 0.1, z * 0.1, 3) - 0.5) * 2.2; // fine
-  h += (fbm(x * 0.24, z * 0.24, 2) - 0.5) * 0.8; // micro
+  // Sub-10m texture is damped near the stream: a real channel bed is smoothed
+  // by sediment/erosion relative to the rougher surrounding hillside, and this
+  // is also what keeps the river surface (River.tsx, which samples this same
+  // function at each bank) from having to clear tall, sharp local bumps.
+  const bedDamp = 1 - moisture01(x, z) * 0.75;
+  h += (fbm(x * 0.05 - 5, z * 0.05 + 9, 3) - 0.5) * 3.5 * bedDamp; // secondary
+  h += (fbm(x * 0.1, z * 0.1, 3) - 0.5) * 2.2 * bedDamp; // fine
+  h += (fbm(x * 0.24, z * 0.24, 2) - 0.5) * 0.8 * bedDamp; // micro
 
   // The two ridge peaks.
   h += bump(x, z, PEAK_W.x, PEAK_W.z, 26, 22, 50);
@@ -209,8 +223,12 @@ export const FEATURES = {
   ridge: { x: -24, z: -73 },
   saddle: { x: RIDGE_MID.x, z: RIDGE_MID.z },
   slope: { x: 36, z: -46 },
-  valley: { x: 4, z: 10 },
-  stream: { x: 8, z: 18 },
+  // The basin center itself, so the marker sits at the true geographic
+  // middle of the valley rather than an offset guess.
+  valley: { x: VALLEY_C.x, z: VALLEY_C.z },
+  // On the STREAM_PATH centerline at z=18 (an exact control point), so the
+  // marker stands in the water rather than beside it.
+  stream: { x: 4, z: 18 },
   rocky: { x: 50, z: -64 },
 } as const;
 

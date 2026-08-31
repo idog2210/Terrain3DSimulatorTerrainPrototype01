@@ -65,6 +65,12 @@ interface SimState {
   /** Visualization layer visibility. */
   layers: Record<LayerKey, boolean>;
   toggleLayer: (key: LayerKey) => void;
+
+  /** True while the Tab-held quick-select wheel is open — freezes mouse-look
+   *  (via PointerLockControls' `enabled` prop) without releasing the actual
+   *  pointer lock, so the wheel can be steered without leaving the game. */
+  radialMenuOpen: boolean;
+  setRadialMenuOpen: (open: boolean) => void;
 }
 
 export const useSimStore = create<SimState>((set) => ({
@@ -114,10 +120,12 @@ export const useSimStore = create<SimState>((set) => ({
   layers: {
     contours: false,
     slope: false,
-    labels: true,
   },
   toggleLayer: (key) =>
     set((state) => ({ layers: { ...state.layers, [key]: !state.layers[key] } })),
+
+  radialMenuOpen: false,
+  setRadialMenuOpen: (radialMenuOpen) => set({ radialMenuOpen }),
 }));
 
 /** Total number of guided concepts. */

@@ -28,6 +28,8 @@ export interface UIStrings {
   ctlClick: string;
   ctlLayersKeys: string;
   ctlLayers: string;
+  ctlQuickMenuKeys: string;
+  ctlQuickMenu: string;
   objectivesTitle: string;
   objectives: string[];
   startBtn: string;
@@ -41,14 +43,15 @@ export interface UIStrings {
   taskLabel: string;
   taskEmpty: string;
   taskGoalLabel: string;
-  moreDetails: string;
   hudRecognize: string;
   hudMapView: string;
+  mapImageAlt: (title: string) => string;
   closeBtn: string;
 
   // Menus
   menuLabel: string;
   viewLabel: string;
+  radialHint: string;
 
   // Guided
   guidedCounter: (n: number, total: number) => string;
@@ -66,8 +69,6 @@ export interface UIStrings {
   layerContoursDesc: string;
   layerSlope: string;
   layerSlopeDesc: string;
-  layerLabels: string;
-  layerLabelsDesc: string;
 
   // Mini-map
   mapTitle: string;
@@ -105,6 +106,8 @@ const en: UIStrings = {
   ctlClick: 'Learn the concept',
   ctlLayersKeys: 'Layer toggles',
   ctlLayers: 'Show terrain analysis',
+  ctlQuickMenuKeys: 'Hold Tab',
+  ctlQuickMenu: 'Switch mode / view without leaving the field',
   objectivesTitle: 'Learning objectives',
   objectives: [
     'Identify major landforms — hills, ridges, valleys and saddles — in a 3D environment.',
@@ -120,13 +123,14 @@ const en: UIStrings = {
   taskLabel: 'Current task',
   taskEmpty: 'Aim at a beacon and click it to open your first task.',
   taskGoalLabel: 'Task goal',
-  moreDetails: 'More detail',
   hudRecognize: 'Spot it in the 3D terrain',
   hudMapView: 'On a topographic map',
+  mapImageAlt: (title) => `Topographic map illustration of a ${title.toLowerCase()}`,
   closeBtn: 'Close',
 
   menuLabel: 'Menu',
   viewLabel: 'View',
+  radialHint: 'Hold Tab for the quick menu',
 
   guidedCounter: (n, total) => `Concept ${n} of ${total}`,
   prev: 'Previous',
@@ -141,8 +145,6 @@ const en: UIStrings = {
   layerContoursDesc: 'Lines of equal elevation',
   layerSlope: 'Slope visualization',
   layerSlopeDesc: 'Steepness heat-map',
-  layerLabels: 'Landform labels',
-  layerLabelsDesc: 'Names floating on the terrain',
 
   mapTitle: 'Map view',
   mapCaption: 'Top-down · contour relief',
@@ -178,6 +180,8 @@ const he: UIStrings = {
   ctlClick: 'ללמוד את המושג',
   ctlLayersKeys: 'מתגי שכבות',
   ctlLayers: 'הצגת ניתוח שטח',
+  ctlQuickMenuKeys: 'החזקת Tab',
+  ctlQuickMenu: 'החלפת מצב/תצוגה בלי לצאת מהשטח',
   objectivesTitle: 'יעדי למידה',
   objectives: [
     'לזהות תוואי שטח עיקריים — גבעות, רכסים, עמקים ואוכפים — בסביבה תלת-ממדית.',
@@ -193,13 +197,14 @@ const he: UIStrings = {
   taskLabel: 'משימה נוכחית',
   taskEmpty: 'כוונו לעבר סמן ולחצו עליו כדי לפתוח את המשימה הראשונה.',
   taskGoalLabel: 'יעד למשימה',
-  moreDetails: 'עוד פרטים',
   hudRecognize: 'זיהוי בשטח התלת-ממדי',
   hudMapView: 'על מפה טופוגרפית',
+  mapImageAlt: (title) => `המחשה של ${title} על מפה טופוגרפית`,
   closeBtn: 'סגירה',
 
   menuLabel: 'תפריט',
   viewLabel: 'תצוגה',
+  radialHint: 'החזיקו Tab לתפריט מהיר',
 
   guidedCounter: (n, total) => `מושג ${n} מתוך ${total}`,
   prev: 'הקודם',
@@ -214,8 +219,6 @@ const he: UIStrings = {
   layerContoursDesc: 'קווים של גובה שווה',
   layerSlope: 'המחשת שיפועים',
   layerSlopeDesc: 'מפת חום של תלילות',
-  layerLabels: 'תוויות תוואי שטח',
-  layerLabelsDesc: 'שמות הצפים מעל השטח',
 
   mapTitle: 'תצוגת מפה',
   mapCaption: 'מבט-על · תבליט וקווי גובה',

@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { Instances, Instance } from '@react-three/drei';
-import { fbm } from '../utils/noise';
 import { getHeight, getSlope01, HALF, ROCK_ZONES, moisture01 } from '../utils/terrainHeight';
 import { useOptionalPBR } from '../utils/useOptionalTextures';
+import { makeRockGeometry } from '../utils/rockGeometry';
 
 /**
  * Boulders and medium rocks built from several noise-displaced icosahedron
@@ -36,24 +36,6 @@ function mulberry32(seed: number) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-function makeRockGeometry(seed: number): THREE.BufferGeometry {
-  const geo = new THREE.IcosahedronGeometry(1, 3);
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  const v = new THREE.Vector3();
-  const f = 1.7;
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i).normalize();
-    let d = fbm(v.x * f + seed, v.y * f + seed * 0.3);
-    d += fbm(v.y * f - seed, v.z * f + seed * 0.7) * 0.6;
-    d += fbm(v.z * f + seed * 1.3, v.x * f - seed) * 0.4;
-    d /= 2;
-    const r = 0.72 + d * 0.56;
-    pos.setXYZ(i, v.x * r, v.y * r * 0.8, v.z * r);
-  }
-  geo.computeVertexNormals();
-  return geo;
 }
 
 /** Strength of the rocky-zone attraction at a point (0..~1.2). */

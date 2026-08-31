@@ -16,6 +16,7 @@ export default function Onboarding() {
     [t.ctlLookKeys, t.ctlLook],
     [t.ctlClickKeys, t.ctlClick],
     [t.ctlLayersKeys, t.ctlLayers],
+    [t.ctlQuickMenuKeys, t.ctlQuickMenu],
   ];
 
   return (

@@ -1,23 +1,25 @@
-import { useState } from 'react';
 import { useSimStore } from '../store';
 import { CONCEPTS_BY_ID } from '../data/terrainConcepts';
 import { UI } from '../i18n';
-import ConceptDetailsModal from './ConceptDetailsModal';
+import { useImageExists } from '../hooks/useImageExists';
 
 /**
- * The single right-side task panel: the selected point's name and its short
- * explanation sentence. The "current task" label and its goals are shown
- * once, in a popup, at the start of the simulation (see TaskIntroModal) —
- * not repeated here. Everything else about the selected concept (how to
- * spot it, how it reads on a map) lives one tap away in a separate info
- * screen, not in a second or third card here.
+ * The single right-side task panel: the selected point's name, its short
+ * explanation sentence, and how to recognize it in the terrain and on a
+ * map — all shown at once, no "more details" step.
  */
 export default function TaskPanel() {
   const lang = useSimStore((s) => s.lang);
   const selectedId = useSimStore((s) => s.selectedId);
   const t = UI[lang];
   const concept = selectedId ? CONCEPTS_BY_ID[selectedId] : null;
-  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  // Illustrative topographic-map crop for the selected concept. These are
+  // generated assets (see public/concepts/PROMPTS.md) and may not exist yet
+  // for every concept, so the <img> only renders once its file is confirmed
+  // present — same "optional asset" spirit as useOptionalPBR.
+  const mapImageSrc = concept ? `/concepts/${concept.id}.png` : '';
+  const mapImageExists = useImageExists(mapImageSrc);
 
   return (
     <div className="panel task-panel">
@@ -27,17 +29,23 @@ export default function TaskPanel() {
         <>
           <h2 className="task-title">{concept.title[lang]}</h2>
           <p className="task-body">{concept.meaning[lang]}</p>
+
+          <hr className="task-divider" />
+
+          <div className="task-section">
+            <span className="task-section-label">{t.hudRecognize}</span>
+            <p>{concept.recognize[lang]}</p>
+          </div>
+          <div className="task-section">
+            <span className="task-section-label">{t.hudMapView}</span>
+            <p>{concept.mapView[lang]}</p>
+            {mapImageExists && (
+              <div className="task-map-image">
+                <img src={mapImageSrc} alt={t.mapImageAlt(concept.title[lang])} />
+              </div>
+            )}
+          </div>
         </>
-      )}
-
-      {concept && (
-        <button type="button" className="task-more" onClick={() => setDetailsOpen(true)}>
-          {t.moreDetails}
-        </button>
-      )}
-
-      {detailsOpen && concept && (
-        <ConceptDetailsModal concept={concept} onClose={() => setDetailsOpen(false)} />
       )}
     </div>
   );

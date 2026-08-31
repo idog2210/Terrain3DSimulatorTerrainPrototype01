@@ -9,6 +9,7 @@ import Onboarding from './components/Onboarding';
 import GuidedBar from './components/GuidedBar';
 import NavMenu from './components/NavMenu';
 import ViewMenu from './components/ViewMenu';
+import RadialMenu from './components/RadialMenu';
 import { EYE_HEIGHT, getHeight } from './utils/terrainHeight';
 import { SPAWN } from './playerPose';
 import { useSimStore } from './store';
@@ -40,7 +41,7 @@ export default function App() {
   }, [lang, t.dir]);
 
   return (
-    <div className={'app' + (mode === 'guided' ? ' guided-look' : '')}>
+    <div className="app">
       <Canvas
         shadows
         dpr={[1, 2]}
@@ -78,6 +79,8 @@ export default function App() {
             <NavMenu />
             <ViewMenu />
           </div>
+
+          <RadialMenu />
 
           <div className="col col-task">
             <TaskPanel />
