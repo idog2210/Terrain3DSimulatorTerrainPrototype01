@@ -9,6 +9,8 @@ import type { ConceptId } from '../utils/terrainTypes';
 
 const WALK_SPEED = 6; // m/s — brisk but realistic field pace
 const RUN_SPEED = 13; // m/s (Shift)
+const JUMP_SPEED = 7; // m/s — initial upward velocity (Space)
+const GRAVITY = 20; // m/s^2
 const BOUND = HALF - 3;
 const GAZE_MAX = 450; // m — exceeds the terrain diagonal so any visible beacon is selectable
 
@@ -35,6 +37,8 @@ export default function FirstPersonController() {
   const center = useRef(new THREE.Vector2(0, 0));
   const bobPhase = useRef(0);
   const bob = useRef(0);
+  const airborne = useRef(0); // height above ground from jumping (m)
+  const jumpVelocity = useRef(0); // vertical velocity while airborne (m/s)
   const lastReset = useRef(useSimStore.getState().resetCount);
 
   // Keyboard + gaze-click listeners.
@@ -45,6 +49,10 @@ export default function FirstPersonController() {
     ]);
     const onKeyDown = (e: KeyboardEvent) => {
       if (MOVE_CODES.has(e.code)) e.preventDefault();
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (airborne.current <= 0) jumpVelocity.current = JUMP_SPEED;
+      }
       keys.current[e.code] = true;
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -83,6 +91,8 @@ export default function FirstPersonController() {
       camera.position.set(SPAWN.x, getHeight(SPAWN.x, SPAWN.z) + EYE_HEIGHT, SPAWN.z);
       velocity.current.set(0, 0, 0);
       bob.current = 0;
+      airborne.current = 0;
+      jumpVelocity.current = 0;
     }
 
     // Camera-relative horizontal basis.
@@ -127,8 +137,16 @@ export default function FirstPersonController() {
       bob.current += (0 - bob.current) * Math.min(1, dt * 10);
     }
 
-    // Pin the eye exactly to the ground every frame — planted, never clipping.
-    camera.position.y = getHeight(x, z) + EYE_HEIGHT + bob.current;
+    // Jump physics: integrate gravity, land back on the ground.
+    jumpVelocity.current -= GRAVITY * dt;
+    airborne.current += jumpVelocity.current * dt;
+    if (airborne.current <= 0) {
+      airborne.current = 0;
+      jumpVelocity.current = 0;
+    }
+
+    // Pin the eye to the ground (plus jump offset) every frame — planted, never clipping.
+    camera.position.y = getHeight(x, z) + EYE_HEIGHT + bob.current + airborne.current;
 
     // Publish pose for the mini-map (heading: 0 = north / -Z).
     playerPose.x = x;

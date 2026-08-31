@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import TerrainScene from './components/TerrainScene';
-import HudPanel from './components/HudPanel';
-import LayerTogglePanel from './components/LayerTogglePanel';
+import TaskPanel from './components/TaskPanel';
+import TaskIntroModal from './components/TaskIntroModal';
+import AzimuthRangePanel from './components/AzimuthRangePanel';
 import MiniMap from './components/MiniMap';
 import Onboarding from './components/Onboarding';
 import GuidedBar from './components/GuidedBar';
-import ObjectivesPanel from './components/ObjectivesPanel';
+import NavMenu from './components/NavMenu';
+import ViewMenu from './components/ViewMenu';
 import { EYE_HEIGHT, getHeight } from './utils/terrainHeight';
 import { SPAWN } from './playerPose';
-import { useSimStore, type Mode } from './store';
+import { useSimStore } from './store';
 import { UI } from './i18n';
 
 const START_Y = getHeight(SPAWN.x, SPAWN.z) + EYE_HEIGHT;
@@ -20,9 +22,9 @@ export default function App() {
   const started = useSimStore((s) => s.started);
   const mode = useSimStore((s) => s.mode);
   const setMode = useSimStore((s) => s.setMode);
-  const requestReset = useSimStore((s) => s.requestReset);
 
   const [locked, setLocked] = useState(false);
+  const [taskIntroOpen, setTaskIntroOpen] = useState(true);
 
   // Pointer-lock state (for the crosshair + "click to enter" prompt).
   useEffect(() => {
@@ -37,14 +39,8 @@ export default function App() {
     document.documentElement.dir = t.dir;
   }, [lang, t.dir]);
 
-  const modes: { key: Mode; label: string }[] = [
-    { key: 'free', label: t.modeFree },
-    { key: 'guided', label: t.modeGuided },
-    { key: 'demo', label: t.modeDemo },
-  ];
-
   return (
-    <div className="app">
+    <div className={'app' + (mode === 'guided' ? ' guided-look' : '')}>
       <Canvas
         shadows
         dpr={[1, 2]}
@@ -78,47 +74,25 @@ export default function App() {
 
       {started && (
         <div className="overlay">
-          <header className="panel titlebar">
-            <div className="brand">
-              <span className="mark" aria-hidden="true" />
-              <div>
-                <h1>{t.appTitle}</h1>
-                <div className="subtitle">{t.appSubtitle}</div>
-              </div>
-            </div>
-
-            <div className="topbar-controls">
-              <div className="mode-switch" role="group">
-                {modes.map((m) => (
-                  <button
-                    key={m.key}
-                    type="button"
-                    className={'mode-btn' + (mode === m.key ? ' active' : '')}
-                    onClick={() => setMode(m.key)}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-              {mode === 'free' && (
-                <button type="button" className="tool-btn" onClick={requestReset}>
-                  {t.reset}
-                </button>
-              )}
-            </div>
-          </header>
-
-          <div className="col col-start">
-            <HudPanel />
-            <ObjectivesPanel />
+          <div className="menu-cluster">
+            <NavMenu />
+            <ViewMenu />
           </div>
 
-          <div className="col col-end">
-            <LayerTogglePanel />
+          <div className="col col-task">
+            <TaskPanel />
+            <AzimuthRangePanel />
+          </div>
+
+          <div className="col col-map">
             <MiniMap />
           </div>
 
           {mode === 'guided' && <GuidedBar />}
+
+          {taskIntroOpen && (
+            <TaskIntroModal onClose={() => setTaskIntroOpen(false)} />
+          )}
 
           {mode === 'demo' && (
             <div className="demo-badge panel">

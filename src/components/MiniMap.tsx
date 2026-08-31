@@ -247,13 +247,12 @@ export default function MiniMap() {
 
   return (
     <div className="panel minimap">
-      <p className="panel-label">{t.mapTitle}</p>
+      <div className="minimap-head">
+        <p className="panel-label">{t.mapTitle}</p>
+        <span className="north">{t.mapNorth} ↑</span>
+      </div>
       <div className="minimap-frame">
         <canvas ref={canvasRef} width={220} height={220} />
-      </div>
-      <div className="legend">
-        <span>{t.mapCaption}</span>
-        <span>{t.mapNorth} ↑</span>
       </div>
     </div>
   );

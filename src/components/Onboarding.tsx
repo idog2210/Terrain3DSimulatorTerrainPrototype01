@@ -21,7 +21,6 @@ export default function Onboarding() {
   return (
     <div className="onboarding">
       <div className="onb-card panel">
-        <span className="onb-emblem" aria-hidden="true" />
         <h1>{t.onbWelcome}</h1>
         <p className="onb-intro">{t.onbIntro}</p>
 

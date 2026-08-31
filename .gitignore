@@ -25,3 +25,12 @@ dist-ssr
 
 # scratch / temp work
 .tmp
+
+# Claude Code local/personal settings (per-machine, not shared with the team)
+.claude/settings.local.json
+
+# Playwright MCP local artifacts
+.playwright-mcp/
+
+# stray temp file
+*.tmp.*

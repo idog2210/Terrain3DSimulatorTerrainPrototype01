@@ -18,8 +18,7 @@ export default function LayerTogglePanel() {
   ];
 
   return (
-    <div className="panel layers">
-      <p className="panel-label">{t.layersTitle}</p>
+    <div className="layers">
       {rows.map((l) => (
         <button
           key={l.key}

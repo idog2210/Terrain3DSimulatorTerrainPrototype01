@@ -28,7 +28,7 @@ export const TERRAIN_CONCEPTS: TerrainConcept[] = [
       he: 'קבוצת קווי גובה סגורים וצפופים, האחד בתוך השני, כשהגובה הרב ביותר במרכז.',
     },
     position: FEATURES.hilltop,
-    view: { x: -24, z: -40 },
+    view: { x: -40, z: -75 },
     accent: '#e8b24c',
   },
   {
@@ -47,7 +47,10 @@ export const TERRAIN_CONCEPTS: TerrainConcept[] = [
       he: "קווי הגובה מתעקלים לצורות 'U' או 'V' מוארכות, שקצותיהן פונות במורד, הרחק מהקרקע הגבוהה.",
     },
     position: FEATURES.ridge,
-    view: { x: -22, z: -48 },
+    // On the crest itself looking along it (not off to one side on a single
+    // flank), near-level with the crest line — this is what makes the drop
+    // to both sides read, matching "walk the crest line" above.
+    view: { x: -34, z: -70 },
     accent: '#d99a45',
   },
   {
@@ -104,7 +107,10 @@ export const TERRAIN_CONCEPTS: TerrainConcept[] = [
       he: 'צורת שעון-חול של קווי גובה: שתי קבוצות טבעות סגורות (הפסגות) שנפגשות במותן נמוך וצר ביניהן.',
     },
     position: FEATURES.saddle,
-    view: { x: -2, z: -44 },
+    // Nearly level with the pass itself (rather than far below looking
+    // steeply up), so the hourglass dip between the two summits reads
+    // clearly instead of being a grazing shot up a steep flank.
+    view: { x: -14, z: -82 },
     accent: '#e6c071',
   },
   {

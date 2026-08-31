@@ -37,12 +37,18 @@ export interface UIStrings {
   enterPrompt: string;
   enterHint: string;
 
-  // HUD
-  hudEyebrow: string;
-  hudEmpty: string;
-  hudMeaning: string;
+  // Task panel
+  taskLabel: string;
+  taskEmpty: string;
+  taskGoalLabel: string;
+  moreDetails: string;
   hudRecognize: string;
   hudMapView: string;
+  closeBtn: string;
+
+  // Menus
+  menuLabel: string;
+  viewLabel: string;
 
   // Guided
   guidedCounter: (n: number, total: number) => string;
@@ -68,6 +74,12 @@ export interface UIStrings {
   mapCaption: string;
   mapNorth: string;
   mapYou: string;
+
+  // Azimuth / range readout
+  azRangeTitle: string;
+  azimuthLabel: string;
+  rangeLabel: string;
+  azRangeUnit: string;
 }
 
 const en: UIStrings = {
@@ -105,12 +117,16 @@ const en: UIStrings = {
   enterPrompt: 'Click to enter the field',
   enterHint: 'Mouse to look · WASD / Arrows to move · Shift to run · Esc to release',
 
-  hudEyebrow: 'Terrain concept',
-  hudEmpty:
-    'Aim the crosshair at a glowing beacon and click to study that terrain concept — or start the guided tour from the top bar. Press Esc to use the panels.',
-  hudMeaning: 'What it is',
+  taskLabel: 'Current task',
+  taskEmpty: 'Aim at a beacon and click it to open your first task.',
+  taskGoalLabel: 'Task goal',
+  moreDetails: 'More detail',
   hudRecognize: 'Spot it in the 3D terrain',
   hudMapView: 'On a topographic map',
+  closeBtn: 'Close',
+
+  menuLabel: 'Menu',
+  viewLabel: 'View',
 
   guidedCounter: (n, total) => `Concept ${n} of ${total}`,
   prev: 'Previous',
@@ -132,6 +148,11 @@ const en: UIStrings = {
   mapCaption: 'Top-down · contour relief',
   mapNorth: 'N',
   mapYou: 'You',
+
+  azRangeTitle: 'Azimuth / range',
+  azimuthLabel: 'Azimuth',
+  rangeLabel: 'Range',
+  azRangeUnit: 'm',
 };
 
 const he: UIStrings = {
@@ -169,12 +190,16 @@ const he: UIStrings = {
   enterPrompt: 'לחצו כדי להיכנס לשטח',
   enterHint: 'עכבר להבטה · WASD / חיצים לתנועה · Shift לריצה · Esc לשחרור',
 
-  hudEyebrow: 'מושג תוואי שטח',
-  hudEmpty:
-    'כוונו את הכוונת אל סמן זוהר ולחצו כדי ללמוד את המושג — או התחילו סיור מודרך מהסרגל העליון. הקישו Esc כדי להשתמש בלוחות.',
-  hudMeaning: 'מה זה',
+  taskLabel: 'משימה נוכחית',
+  taskEmpty: 'כוונו לעבר סמן ולחצו עליו כדי לפתוח את המשימה הראשונה.',
+  taskGoalLabel: 'יעד למשימה',
+  moreDetails: 'עוד פרטים',
   hudRecognize: 'זיהוי בשטח התלת-ממדי',
   hudMapView: 'על מפה טופוגרפית',
+  closeBtn: 'סגירה',
+
+  menuLabel: 'תפריט',
+  viewLabel: 'תצוגה',
 
   guidedCounter: (n, total) => `מושג ${n} מתוך ${total}`,
   prev: 'הקודם',
@@ -196,6 +221,11 @@ const he: UIStrings = {
   mapCaption: 'מבט-על · תבליט וקווי גובה',
   mapNorth: 'צ',
   mapYou: 'אתם',
+
+  azRangeTitle: 'אזימוט / טווח',
+  azimuthLabel: 'אזימוט',
+  rangeLabel: 'טווח',
+  azRangeUnit: 'מ׳',
 };
 
 export const UI: Record<Lang, UIStrings> = { en, he };
