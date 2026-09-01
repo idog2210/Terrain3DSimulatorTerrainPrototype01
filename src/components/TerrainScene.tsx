@@ -9,6 +9,7 @@ import ContourLines from './ContourLines';
 import TerrainMarker from './TerrainMarker';
 import FirstPersonController from './FirstPersonController';
 import CameraDirector from './CameraDirector';
+import WanderBoundary from './WanderBoundary';
 import DemoCameraTour from './DemoCameraTour';
 import Effects from './Effects';
 import { TERRAIN_CONCEPTS } from '../data/terrainConcepts';
@@ -20,8 +21,10 @@ import { useSimStore } from '../store';
  * layers, the educational markers, the camera driver for the current mode, and
  * the cinematic post-processing stack:
  *   - free   → first-person controller + pointer-lock mouse-look
- *   - guided → scripted CameraDirector (stands at each marker) + pointer-lock mouse-look
- *   - demo   → scripted CameraDirector (no pointer lock)
+ *   - guided → CameraDirector (wanders a 10m circle around each marker) +
+ *     pointer-lock mouse-look, same as free mode
+ * The scripted DemoCameraTour runs before the learner starts, as the moving
+ * backdrop behind the onboarding popup.
  */
 export default function TerrainScene() {
   const layers = useSimStore((s) => s.layers);
@@ -58,10 +61,11 @@ export default function TerrainScene() {
       {started && mode === 'guided' && (
         <>
           <CameraDirector />
+          <WanderBoundary />
           <PointerLockControls selector=".app canvas" enabled={!radialMenuOpen} />
         </>
       )}
-      {started && mode === 'demo' && <DemoCameraTour />}
+      {!started && <DemoCameraTour />}
 
       <Effects />
     </>

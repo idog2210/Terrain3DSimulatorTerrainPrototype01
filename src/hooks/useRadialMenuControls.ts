@@ -5,12 +5,12 @@ import type { LayerKey } from '../utils/terrainTypes';
 
 type ActionId = Mode | LayerKey;
 type ActionGroup = 'mode' | 'layer';
+type Action = { id: ActionId; group: ActionGroup };
 
-/** The five quick actions laid out clockwise from 12 o'clock. */
-const ACTIONS: { id: ActionId; group: ActionGroup }[] = [
+/** The four quick actions laid out clockwise from 12 o'clock. */
+const ACTIONS: Action[] = [
   { id: 'free', group: 'mode' },
   { id: 'guided', group: 'mode' },
-  { id: 'demo', group: 'mode' },
   { id: 'contours', group: 'layer' },
   { id: 'slope', group: 'layer' },
 ];
@@ -19,11 +19,24 @@ const STEP = (Math.PI * 2) / ACTIONS.length;
 /** Below this accumulated mouse offset (px) the wheel keeps its last pick — avoids jitter right as it opens. */
 const DEADZONE = 12;
 
+/** Direct keyboard shortcuts for the layer wedges, live only while the wheel
+ *  is held open — lets a layer be toggled without steering the wheel by hand. */
+const LAYER_SHORTCUTS: Record<string, LayerKey> = {
+  KeyC: 'contours',
+  KeyS: 'slope',
+};
+
+/** Reverse lookup so the menu can show each layer wedge's key next to its label. */
+const SHORTCUT_LABELS: Partial<Record<LayerKey, string>> = Object.fromEntries(
+  Object.entries(LAYER_SHORTCUTS).map(([code, layer]) => [layer, code.replace('Key', '')]),
+);
+
 export interface RadialMenuItem {
   id: ActionId;
   group: ActionGroup;
   label: string;
   active: boolean;
+  shortcut?: string;
 }
 
 /** Maps a screen-space angle (0 = pointing right, clockwise) to the wedge index, matching the layout RadialMenu renders. */
@@ -34,9 +47,12 @@ function angleToIndex(angle: number): number {
 }
 
 /**
- * Drives the Tab-held quick-select wheel: opens on keydown (only while
- * pointer-locked in free mode), tracks relative mouse movement to pick a
- * wedge, and commits on keyup — all without releasing the OS pointer lock.
+ * Drives the Tab-held quick-select wheel: opens on keydown (while
+ * pointer-locked in free mode, or any time in guided mode, which has no
+ * lock), tracks relative mouse movement to pick a wedge, and commits on
+ * keyup — all without releasing the OS pointer lock in free mode.
+ * While held, KeyC / KeyS also toggle their layer directly and close the
+ * wheel right away, as a shortcut around steering to that wedge by hand.
  * Escape, losing focus, or losing the lock underneath it cancels instead.
  */
 export function useRadialMenuControls() {
@@ -54,12 +70,11 @@ export function useRadialMenuControls() {
             ? t.modeFree
             : a.id === 'guided'
               ? t.modeGuided
-              : a.id === 'demo'
-                ? t.modeDemo
-                : a.id === 'contours'
-                  ? t.layerContours
-                  : t.layerSlope,
+              : a.id === 'contours'
+                ? t.layerContours
+                : t.layerSlope,
         active: a.group === 'mode' ? mode === a.id : layers[a.id as LayerKey],
+        shortcut: a.group === 'layer' ? SHORTCUT_LABELS[a.id as LayerKey] : undefined,
       })),
     [t, mode, layers],
   );
@@ -87,33 +102,40 @@ export function useRadialMenuControls() {
       useSimStore.getState().setRadialMenuOpen(true);
     };
 
-    const closeMenu = (apply: boolean) => {
+    const closeMenu = (action: Action | null) => {
       openRef.current = false;
       setOpen(false);
       useSimStore.getState().setRadialMenuOpen(false);
-      if (!apply) return;
+      if (!action) return;
 
-      const action = ACTIONS[selectedRef.current];
       if (action.group === 'mode') {
-        const target = action.id as Mode;
-        useSimStore.getState().setMode(target);
-        // Leaving free mode drops the first-person controls entirely, so
-        // release the OS-level lock too — guided/demo need a visible cursor.
-        if (target !== 'free' && document.pointerLockElement) {
-          document.exitPointerLock();
-        }
+        // Guided mode uses PointerLockControls too (look-around + WASD/arrow
+        // wander around each station), so keep the OS-level lock through the
+        // switch instead of dropping it — otherwise the learner has to click
+        // the canvas again before they can move.
+        useSimStore.getState().setMode(action.id as Mode);
       } else {
         useSimStore.getState().toggleLayer(action.id as LayerKey);
       }
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== 'Tab') return;
       if (openRef.current) {
-        e.preventDefault();
+        const layerKey = LAYER_SHORTCUTS[e.code];
+        if (layerKey) {
+          e.preventDefault();
+          closeMenu({ id: layerKey, group: 'layer' });
+          return;
+        }
+        if (e.code === 'Tab') e.preventDefault();
         return;
       }
-      if (useSimStore.getState().mode !== 'free' || !document.pointerLockElement) return;
+      if (e.code !== 'Tab') return;
+      const currentMode = useSimStore.getState().mode;
+      // Free mode drives the wheel via pointer-lock deltas, so it needs the
+      // lock held; guided mode has a visible, unlocked cursor and can open
+      // the wheel directly — it's how guided mode reaches free mode again.
+      if (currentMode === 'free' && !document.pointerLockElement) return;
       e.preventDefault();
       openMenu();
     };
@@ -121,11 +143,11 @@ export function useRadialMenuControls() {
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code !== 'Tab' || !openRef.current) return;
       e.preventDefault();
-      closeMenu(true);
+      closeMenu(ACTIONS[selectedRef.current]);
     };
 
     const onEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && openRef.current) closeMenu(false);
+      if (e.key === 'Escape' && openRef.current) closeMenu(null);
     };
 
     const onMouseMove = (e: MouseEvent) => {
@@ -144,10 +166,10 @@ export function useRadialMenuControls() {
     // Losing window focus or the pointer lock itself (e.g. a physical Esc,
     // which the browser always honors) mid-gesture cancels rather than commits.
     const onLockLost = () => {
-      if (openRef.current && !document.pointerLockElement) closeMenu(false);
+      if (openRef.current && !document.pointerLockElement) closeMenu(null);
     };
     const onBlur = () => {
-      if (openRef.current) closeMenu(false);
+      if (openRef.current) closeMenu(null);
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -166,5 +188,10 @@ export function useRadialMenuControls() {
     };
   }, []);
 
-  return { open, items, selected, locked };
+  // The persistent "Tab" hint should show whenever the wheel is actually
+  // reachable: pointer-locked in free mode, or unconditionally in guided
+  // mode (which has no lock but still opens the wheel).
+  const hintVisible = locked || mode === 'guided';
+
+  return { open, items, selected, hintVisible };
 }

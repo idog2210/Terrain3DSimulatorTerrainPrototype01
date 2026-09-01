@@ -12,12 +12,13 @@ const RADIUS = 92; // px from center to each wedge label
  */
 export default function RadialMenu() {
   const t = UI[useSimStore((s) => s.lang)];
-  const { open, items, selected, locked } = useRadialMenuControls();
+  const mode = useSimStore((s) => s.mode);
+  const { open, items, selected, hintVisible } = useRadialMenuControls();
 
   if (!open) {
-    if (!locked) return null;
+    if (!hintVisible) return null;
     return (
-      <div className="radial-hint">
+      <div className={'radial-hint' + (mode === 'guided' ? ' radial-hint--guided' : '')}>
         <kbd>Tab</kbd>
         <span>{t.radialHint}</span>
       </div>
@@ -47,6 +48,7 @@ export default function RadialMenu() {
             style={{ left: `calc(50% + ${x}px)`, top: `calc(50% + ${y}px)` }}
           >
             {item.label}
+            {item.shortcut && <kbd className="radial-item-key">{item.shortcut}</kbd>}
           </div>
         );
       })}

@@ -3,7 +3,7 @@ import type { ConceptId, Lang, LayerKey } from './utils/terrainTypes';
 import { TERRAIN_CONCEPTS } from './data/terrainConcepts';
 
 /** Exploration modes. */
-export type Mode = 'free' | 'guided' | 'demo';
+export type Mode = 'free' | 'guided';
 
 /** Concept ids in the guided teaching order. */
 const ORDER: ConceptId[] = TERRAIN_CONCEPTS.map((c) => c.id);
@@ -12,7 +12,6 @@ const ORDER: ConceptId[] = TERRAIN_CONCEPTS.map((c) => c.id);
  * Optional deep-link initial state for demos / presentations:
  *   ?lang=he         start in Hebrew (RTL)
  *   ?mode=guided     skip onboarding, open guided tour
- *   ?mode=demo       skip onboarding, run the auto demo
  *   ?start=1         skip onboarding into free exploration
  */
 function initFromUrl(): { lang: Lang; mode: Mode; started: boolean } {
@@ -20,7 +19,7 @@ function initFromUrl(): { lang: Lang; mode: Mode; started: boolean } {
   try {
     const p = new URLSearchParams(window.location.search);
     const m = p.get('mode');
-    const mode: Mode = m === 'guided' || m === 'demo' ? m : 'free';
+    const mode: Mode = m === 'guided' ? m : 'free';
     const started = p.get('start') === '1' || m !== null;
     return { lang: 'he', mode, started };
   } catch {
@@ -49,6 +48,8 @@ interface SimState {
   guidedIndex: number;
   guidedNext: () => void;
   guidedPrev: () => void;
+  /** Ends the tour from its last station and returns to the onboarding overlay. */
+  finishGuided: () => void;
 
   /** Incremented to ask the controller to reset the player to spawn. */
   resetCount: number;
@@ -92,8 +93,7 @@ export const useSimStore = create<SimState>((set) => ({
     set((s) => ({
       mode,
       guidedIndex: 0,
-      selectedId:
-        mode === 'guided' ? ORDER[0] : mode === 'demo' ? null : s.selectedId,
+      selectedId: mode === 'guided' ? ORDER[0] : s.selectedId,
     })),
 
   guidedIndex: 0,
@@ -107,6 +107,7 @@ export const useSimStore = create<SimState>((set) => ({
       const i = Math.max(0, s.guidedIndex - 1);
       return { guidedIndex: i, selectedId: ORDER[i] };
     }),
+  finishGuided: () => set({ started: false }),
 
   resetCount: 0,
   requestReset: () => set((s) => ({ resetCount: s.resetCount + 1 })),

@@ -2,8 +2,10 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { EYE_HEIGHT, HALF, getHeight } from '../utils/terrainHeight';
+import { getWaterDepth, getWaterSpeedMultiplier } from '../utils/waterChannel';
 import { useSimStore } from '../store';
 import { markerObjects } from '../markerRegistry';
+import { getColliders, pushOutOfColliders } from '../colliderRegistry';
 import { playerPose, SPAWN } from '../playerPose';
 import type { ConceptId } from '../utils/terrainTypes';
 
@@ -12,6 +14,8 @@ const RUN_SPEED = 13; // m/s (Shift)
 const JUMP_SPEED = 7; // m/s — initial upward velocity (Space)
 const GRAVITY = 20; // m/s^2
 const BOUND = HALF - 3;
+const PLAYER_RADIUS = 0.35; // m — used to keep the player out of rock/tree colliders
+const JUMP_CLEAR_MARGIN = 0.15; // m — how far above a hard obstacle's top counts as "cleared" mid-jump
 const GAZE_MAX = 450; // m — exceeds the terrain diagonal so any visible beacon is selectable
 
 /**
@@ -40,6 +44,14 @@ export default function FirstPersonController() {
   const airborne = useRef(0); // height above ground from jumping (m)
   const jumpVelocity = useRef(0); // vertical velocity while airborne (m/s)
   const lastReset = useRef(useSimStore.getState().resetCount);
+
+  // Snap to the spawn point the moment this controller mounts, so free
+  // exploration always begins there regardless of where the pre-start
+  // demo tour camera happened to be when the learner clicked "start".
+  useEffect(() => {
+    camera.position.set(SPAWN.x, getHeight(SPAWN.x, SPAWN.z) + EYE_HEIGHT, SPAWN.z);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keyboard + gaze-click listeners.
   useEffect(() => {
@@ -105,6 +117,12 @@ export default function FirstPersonController() {
     const fwd = (k['KeyW'] || k['ArrowUp'] ? 1 : 0) - (k['KeyS'] || k['ArrowDown'] ? 1 : 0);
     const str = (k['KeyD'] || k['ArrowRight'] ? 1 : 0) - (k['KeyA'] || k['ArrowLeft'] ? 1 : 0);
 
+    // Wading: deeper water slows walking, per a real-world depth/speed study
+    // (ankle ~90-95% of land speed, down to ~25-40% at waist depth). No swim
+    // mode — the multiplier just floors out past the waist anchor.
+    const waterDepth = getWaterDepth(camera.position.x, camera.position.z);
+    const waterSpeedMul = getWaterSpeedMultiplier(waterDepth);
+
     // Target velocity from input.
     desired.current.set(0, 0, 0);
     if (fwd !== 0 || str !== 0) {
@@ -112,7 +130,7 @@ export default function FirstPersonController() {
         .addScaledVector(forward.current, fwd)
         .addScaledVector(right.current, str)
         .normalize()
-        .multiplyScalar(k['ShiftLeft'] || k['ShiftRight'] ? RUN_SPEED : WALK_SPEED);
+        .multiplyScalar((k['ShiftLeft'] || k['ShiftRight'] ? RUN_SPEED : WALK_SPEED) * waterSpeedMul);
     }
     // Smoothly accelerate / decelerate toward the target velocity — snappy
     // enough to feel planted, not floaty.
@@ -121,6 +139,18 @@ export default function FirstPersonController() {
 
     let x = camera.position.x + velocity.current.x * dt;
     let z = camera.position.z + velocity.current.z * dt;
+
+    // Approximate feet height at the tentative position — lets a high-enough
+    // jump clear a short hard obstacle instead of being walled by it mid-air.
+    const feetHeight = getHeight(x, z) + airborne.current;
+
+    // Push the player back out of any hard (non-climbable) collider it now
+    // overlaps, along the penetration normal — resolved fresh every frame,
+    // which reads as sliding along the obstacle rather than a hard stop.
+    // Climbable (short) rocks are skipped here; they're handled below by
+    // raising the ground height instead, so the player walks up onto them.
+    ({ x, z } = pushOutOfColliders(x, z, feetHeight, PLAYER_RADIUS, JUMP_CLEAR_MARGIN));
+
     x = Math.max(-BOUND, Math.min(BOUND, x));
     z = Math.max(-BOUND, Math.min(BOUND, z));
     camera.position.x = x;
@@ -145,8 +175,23 @@ export default function FirstPersonController() {
       jumpVelocity.current = 0;
     }
 
+    // Climbable (short) rocks raise the walkable surface within their footprint —
+    // smoothly toward their peak at the center, easing back to bare terrain at
+    // the edge — so the player walks up onto them instead of being blocked.
+    let groundY = getHeight(x, z);
+    for (const c of getColliders()) {
+      if (!c.climbable || c.topY === undefined) continue;
+      const dx = x - c.x;
+      const dz = z - c.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < c.radius) {
+        const t = 1 - dist / c.radius;
+        groundY = Math.max(groundY, THREE.MathUtils.lerp(groundY, c.topY, t));
+      }
+    }
+
     // Pin the eye to the ground (plus jump offset) every frame — planted, never clipping.
-    camera.position.y = getHeight(x, z) + EYE_HEIGHT + bob.current + airborne.current;
+    camera.position.y = groundY + EYE_HEIGHT + bob.current + airborne.current;
 
     // Publish pose for the mini-map (heading: 0 = north / -Z).
     playerPose.x = x;

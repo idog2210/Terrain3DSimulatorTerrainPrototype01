@@ -14,10 +14,19 @@ export default function Onboarding() {
   const controls: [string, string][] = [
     [t.ctlMoveKeys, t.ctlMove],
     [t.ctlLookKeys, t.ctlLook],
-    [t.ctlClickKeys, t.ctlClick],
-    [t.ctlLayersKeys, t.ctlLayers],
     [t.ctlQuickMenuKeys, t.ctlQuickMenu],
   ];
+
+  // The Pointer Lock API only grants the lock in direct response to a user
+  // gesture, and the canvas' own click-to-lock listener (PointerLockControls)
+  // only exists once guided mode has mounted a frame later — so request the
+  // lock here, synchronously inside this click handler, on the canvas that's
+  // already present behind the onboarding overlay (the demo tour backdrop).
+  const startGuided = () => {
+    const canvas = document.querySelector<HTMLCanvasElement>('.app canvas');
+    canvas?.requestPointerLock()?.catch?.(() => {});
+    start('guided');
+  };
 
   return (
     <div className="onboarding">
@@ -27,7 +36,7 @@ export default function Onboarding() {
 
         <div className="onb-grid">
           <section>
-            <p className="panel-label">{t.onbControlsTitle}</p>
+            <p className="onb-subhead">{t.onbControlsTitle}</p>
             <ul className="onb-controls">
               {controls.map(([k, v], i) => (
                 <li key={i}>
@@ -39,7 +48,7 @@ export default function Onboarding() {
           </section>
 
           <section>
-            <p className="panel-label">{t.objectivesTitle}</p>
+            <p className="onb-subhead">{t.objectivesTitle}</p>
             <ul className="onb-objectives">
               {t.objectives.map((o, i) => (
                 <li key={i}>{o}</li>
@@ -48,11 +57,16 @@ export default function Onboarding() {
           </section>
         </div>
 
+        <div className="onb-interact">
+          <p className="onb-subhead">{t.onbInteractTitle}</p>
+          <p className="onb-subtext">{t.onbInteractDesc}</p>
+        </div>
+
         <div className="onb-actions">
           <button type="button" className="btn primary" onClick={() => start('free')}>
             {t.startBtn}
           </button>
-          <button type="button" className="btn" onClick={() => start('guided')}>
+          <button type="button" className="btn" onClick={() => startGuided()}>
             {t.startGuidedBtn}
           </button>
         </div>

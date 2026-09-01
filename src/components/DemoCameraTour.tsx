@@ -5,10 +5,10 @@ import { getHeight } from '../utils/terrainHeight';
 import { playerPose } from '../playerPose';
 
 /**
- * Hands-free cinematic tour for demo mode: the camera eases between a set of
- * curated scenic viewpoints — the opening ridge vista, down the valley, along
- * the stream, the rocky flank, and the saddle — looping continuously. Built for
- * showcasing the simulator without walking.
+ * Hands-free cinematic tour shown behind the onboarding screen: the camera
+ * eases between a set of curated scenic viewpoints — the opening ridge vista,
+ * down the valley, along the stream, the rocky flank, and the saddle —
+ * looping continuously.
  */
 
 interface Waypoint {

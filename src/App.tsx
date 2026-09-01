@@ -2,13 +2,10 @@ import { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import TerrainScene from './components/TerrainScene';
 import TaskPanel from './components/TaskPanel';
-import TaskIntroModal from './components/TaskIntroModal';
 import AzimuthRangePanel from './components/AzimuthRangePanel';
 import MiniMap from './components/MiniMap';
 import Onboarding from './components/Onboarding';
 import GuidedBar from './components/GuidedBar';
-import NavMenu from './components/NavMenu';
-import ViewMenu from './components/ViewMenu';
 import RadialMenu from './components/RadialMenu';
 import { EYE_HEIGHT, getHeight } from './utils/terrainHeight';
 import { SPAWN } from './playerPose';
@@ -22,10 +19,8 @@ export default function App() {
   const t = UI[lang];
   const started = useSimStore((s) => s.started);
   const mode = useSimStore((s) => s.mode);
-  const setMode = useSimStore((s) => s.setMode);
 
   const [locked, setLocked] = useState(false);
-  const [taskIntroOpen, setTaskIntroOpen] = useState(true);
 
   // Pointer-lock state (for the crosshair + "click to enter" prompt).
   useEffect(() => {
@@ -75,11 +70,6 @@ export default function App() {
 
       {started && (
         <div className="overlay">
-          <div className="menu-cluster">
-            <NavMenu />
-            <ViewMenu />
-          </div>
-
           <RadialMenu />
 
           <div className="col col-task">
@@ -92,20 +82,6 @@ export default function App() {
           </div>
 
           {mode === 'guided' && <GuidedBar />}
-
-          {taskIntroOpen && (
-            <TaskIntroModal onClose={() => setTaskIntroOpen(false)} />
-          )}
-
-          {mode === 'demo' && (
-            <div className="demo-badge panel">
-              <span className="rec-dot" aria-hidden="true" />
-              {t.demoBadge}
-              <button type="button" className="ghost-btn" onClick={() => setMode('free')}>
-                {t.exitDemo}
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>

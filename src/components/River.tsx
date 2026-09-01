@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { STREAM_PATH, getHeight } from '../utils/terrainHeight';
-import { fbm } from '../utils/noise';
+import { getRiverChannel } from '../utils/waterChannel';
 
 /**
  * The river: a ribbon mesh following STREAM_PATH (a meandering multi-point
@@ -14,98 +13,41 @@ import { fbm } from '../utils/noise';
  * narrows/pools), which also drives a per-rib flow speed by continuity
  * (narrow = faster).
  * A water shader (same onBeforeCompile technique as advancedTerrainMaterial.ts)
- * layers on: flow-mapped ripples that scroll downstream at that per-rib
- * speed, bank + fast-water foam, a Fresnel roughness term for near-mirror
- * grazing-angle reflections, and a deep/shallow color gradient across the
- * width.
+ * layers on: flow-mapped ripples (three octaves, the finest matched to the
+ * grain scale the terrain/rocks/trees get from their real normal-map
+ * textures) that scroll downstream at that per-rib speed, bank + fast-water
+ * + current-line foam, a boosted envMapIntensity plus a Fresnel roughness
+ * term for near-mirror grazing-angle reflections, a sun-glint sparkle layer,
+ * and a deep/shallow/wet-bed color gradient driven by the real per-vertex
+ * channel depth computed in buildRiverGeometry (not a UV-position guess).
  */
 
-const SEGMENTS_PER_SPAN = 14;
-const BASE_WIDTH = 3.4;
-
-function smoothstep01(edge0: number, edge1: number, x: number): number {
-  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
-  return t * t * (3 - 2 * t);
-}
-
-// Vertical clearance each bank vertex keeps above the terrain sampled right
-// beneath it. Small, because the terrain's own fine noise is already damped
-// near the stream (see `bedDamp` in getHeight) — this only needs to cover
-// the residual left after that plus the 3-tap smoothing below.
-const WATER_CLEARANCE = 0.25;
-
 function buildRiverGeometry(): THREE.BufferGeometry {
-  const controlPoints = STREAM_PATH.map(([x, z]) => new THREE.Vector3(x, 0, z));
-  const curve = new THREE.CatmullRomCurve3(controlPoints, false, 'catmullrom', 0.4);
-  const steps = (STREAM_PATH.length - 1) * SEGMENTS_PER_SPAN;
+  const {
+    steps,
+    centers,
+    normals,
+    halfWidths,
+    flowSpeeds,
+    leftHeights: leftSmoothed,
+    rightHeights: rightSmoothed,
+    centerGround: centerRaw,
+  } = getRiverChannel();
 
-  const centers: THREE.Vector3[] = [];
-  for (let i = 0; i <= steps; i++) {
-    centers.push(curve.getPoint(i / steps));
-  }
-
-  // Per-rib tangent/normal/half-width, computed from the (x, z) centerline
-  // only — independent of the height values resolved below.
-  const normals: THREE.Vector3[] = [];
-  const halfWidths: number[] = [];
-  // Per-rib flow speed: slow fbm narrows/widens the channel a little (natural
-  // pools and riffles, well inside the wider carved channel so banks never
-  // clip) and speed follows from width by continuity — a narrow rib flows
-  // faster than a wide one, same as a real stream.
-  const flowSpeeds: number[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const prev = centers[Math.max(0, i - 1)];
-    const next = centers[Math.min(steps, i + 1)];
-    const tangent = new THREE.Vector3().subVectors(next, prev);
-    tangent.y = 0;
-    if (tangent.lengthSq() < 1e-8) tangent.set(1, 0, 0);
-    tangent.normalize();
-    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
-    normals.push(normal);
-
-    const taper = smoothstep01(0, 0.06, t) * (1 - smoothstep01(0.94, 1, t));
-    const widthMul = 0.78 + fbm(t * 9 + 3.1, 7.7, 2) * 0.55; // ~[0.78, 1.33]
-    halfWidths.push((BASE_WIDTH * 0.5) * widthMul * Math.max(0.05, taper));
-    flowSpeeds.push(Math.min(1.7, Math.max(0.55, 1 / widthMul)));
-  }
-
-  // Height per bank: sample each edge of the cross-section independently and
-  // let the water surface follow the real cross-slope of the channel bed,
-  // instead of forcing both banks to the height of whichever side is
-  // highest. That flat-plane-at-the-max approach was the actual cause of
-  // banks floating visibly above their own ground on any cross-slope (up to
-  // ~2 m on this terrain) — raising the low bank to match the high one. Each
-  // edge is still guarded against the centerline bumping up between them
-  // (so a mid-channel rise can't poke through the strip joining the two
-  // banks), just not against the *other* edge.
-  const leftHeights: number[] = [];
-  const rightHeights: number[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const p = centers[i];
-    const normal = normals[i];
-    const hw = halfWidths[i];
-    const hCenter = getHeight(p.x, p.z);
-    const hLeft = getHeight(p.x + normal.x * hw, p.z + normal.z * hw);
-    const hRight = getHeight(p.x - normal.x * hw, p.z - normal.z * hw);
-    leftHeights.push(Math.max(hLeft, hCenter) + WATER_CLEARANCE);
-    rightHeights.push(Math.max(hRight, hCenter) + WATER_CLEARANCE);
-  }
-
-  // Light smoothing along the flow direction (not across the width) to damp
-  // residual fine-noise bumps between neighboring ribs, per bank.
-  const smooth3 = (arr: number[]) =>
-    arr.map((h, i) => {
-      const prev = arr[Math.max(0, i - 1)];
-      const next = arr[Math.min(steps, i + 1)];
-      return (prev + h + next) / 3;
-    });
-  const leftSmoothed = smooth3(leftHeights);
-  const rightSmoothed = smooth3(rightHeights);
+  // Real per-rib channel depth: how far the (already-carved) centerline bed
+  // sits below the water line, using the higher bank as the water-line
+  // reference. This is genuine geometry, not a UV-space guess — it deepens
+  // through real pools/carved stretches and shallows out toward the tapered
+  // ends, and drives the fragment shader's color/alpha/foam below instead of
+  // a fake distance-from-centerline blend.
+  const depths = centerRaw.map((hCenter, i) =>
+    Math.max(0.05, Math.max(leftSmoothed[i], rightSmoothed[i]) - hCenter),
+  );
 
   const positions: number[] = [];
   const uvs: number[] = [];
   const flowSpeedAttr: number[] = [];
+  const depthAttr: number[] = [];
   const indices: number[] = [];
 
   for (let i = 0; i <= steps; i++) {
@@ -121,6 +63,7 @@ function buildRiverGeometry(): THREE.BufferGeometry {
     positions.push(left.x, left.y, left.z, right.x, right.y, right.z);
     uvs.push(0, t * steps * 0.35, 1, t * steps * 0.35);
     flowSpeedAttr.push(flowSpeeds[i], flowSpeeds[i]);
+    depthAttr.push(depths[i], depths[i]);
 
     if (i > 0) {
       const a = (i - 1) * 2;
@@ -133,6 +76,7 @@ function buildRiverGeometry(): THREE.BufferGeometry {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('aRiverUv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setAttribute('aFlowSpeed', new THREE.Float32BufferAttribute(flowSpeedAttr, 1));
+  geo.setAttribute('aDepth', new THREE.Float32BufferAttribute(depthAttr, 1));
   geo.setIndex(indices);
   geo.computeVertexNormals();
   return geo;
@@ -156,6 +100,11 @@ function createWaterMaterial(): THREE.MeshStandardMaterial {
     metalness: 0.05,
     transparent: true,
     side: THREE.DoubleSide,
+    // A wet, reflective surface should lean on the scene's IBL probe more
+    // than the matte terrain/rock/tree materials around it do (their default
+    // is 1) — this is the main lever making the water read as reflective
+    // rather than flat-shaded, without a new reflection pass.
+    envMapIntensity: 1.45,
   });
 
   material.onBeforeCompile = (shader) => {
@@ -165,7 +114,7 @@ function createWaterMaterial(): THREE.MeshStandardMaterial {
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        'attribute vec2 aRiverUv;\nattribute float aFlowSpeed;\nvarying vec2 vWaterUv;\nvarying float vFlowSpeed;\nvarying vec3 vWPos;\nvarying vec3 vWNormal;\nuniform float uTime;\n#include <common>',
+        'attribute vec2 aRiverUv;\nattribute float aFlowSpeed;\nattribute float aDepth;\nvarying vec2 vWaterUv;\nvarying float vFlowSpeed;\nvarying float vDepth;\nvarying vec3 vWPos;\nvarying vec3 vWNormal;\nuniform float uTime;\n#include <common>',
       )
       .replace(
         '#include <beginnormal_vertex>',
@@ -176,6 +125,7 @@ function createWaterMaterial(): THREE.MeshStandardMaterial {
         `#include <begin_vertex>
   vWaterUv = aRiverUv;
   vFlowSpeed = aFlowSpeed;
+  vDepth = aDepth;
   // Gentle traveling surface wave, downstream (vWaterUv.y) and time driven,
   // scaled a few cm so it reads as motion without reintroducing bank
   // floating/intrusion — the base height above is already correct per-vertex.
@@ -188,7 +138,7 @@ function createWaterMaterial(): THREE.MeshStandardMaterial {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        `varying vec2 vWaterUv;\nvarying float vFlowSpeed;\nvarying vec3 vWPos;\nvarying vec3 vWNormal;\nuniform float uTime;\n${WATER_NOISE_GLSL}\n#include <common>`,
+        `varying vec2 vWaterUv;\nvarying float vFlowSpeed;\nvarying float vDepth;\nvarying vec3 vWPos;\nvarying vec3 vWNormal;\nuniform float uTime;\n${WATER_NOISE_GLSL}\n#include <common>`,
       )
       .replace(
         '#include <roughnessmap_fragment>',
@@ -214,6 +164,13 @@ function createWaterMaterial(): THREE.MeshStandardMaterial {
   float n1 = wNoise(uvA);
   float n2 = wNoise(uvB);
   vec2 offset = (vec2(n1, n2) - 0.5) * vec2(0.075, 0.2) * turb;
+  // A finer third octave, matched to the pixel-grain scale a real normal-map
+  // texture would give the terrain/rocks/trees — keeps the water from
+  // reading smoother/flatter than everything else built from photographic
+  // PBR maps.
+  vec2 uvC = vWaterUv * vec2(11.0, 46.0) + vec2(flow * 0.11, flow * 2.1) + 23.4;
+  float n3 = wNoise(uvC);
+  offset += (n3 - 0.5) * 0.035;
   // normalMatrix is a vertex-only uniform in this build, so perturb the
   // world-space normal (vWNormal) and re-project to view space with
   // viewMatrix, which — unlike normalMatrix — is available here too.
@@ -225,22 +182,36 @@ function createWaterMaterial(): THREE.MeshStandardMaterial {
         '#include <color_fragment>',
         `#include <color_fragment>
 {
+  // Real depth cue: vDepth is genuine carved-bed-to-water-line distance from
+  // the geometry (varies with actual pools/riffles along the channel), not a
+  // guess from UV position. Combined with the cross-section shape (still
+  // deepest at the centerline, shoaling toward the banks) it drives color,
+  // alpha and how much the streambed itself bleeds through in shallow water —
+  // the things a real shallow mountain stream actually shows.
   float edge = abs(vWaterUv.x - 0.5) * 2.0;
+  float crossSection = 1.0 - edge * edge;
+  float depthNorm = clamp(vDepth / 1.8, 0.0, 1.0);
+  float depthShape = clamp(crossSection * depthNorm * 1.3, 0.0, 1.0);
+
   vec3 deep = vec3(0.03, 0.13, 0.16);
   vec3 shallow = vec3(0.22, 0.4, 0.38);
-  diffuseColor.rgb = mix(deep, shallow, clamp(edge * 1.3, 0.0, 1.0));
-  diffuseColor.a = mix(0.92, 0.35, clamp(edge * 1.6, 0.0, 1.0));
+  vec3 wetBed = vec3(0.33, 0.32, 0.24); // damp streambed showing through where it's genuinely thin
+  vec3 base = mix(shallow, deep, depthShape);
+  diffuseColor.rgb = mix(wetBed, base, smoothstep(0.0, 0.22, depthShape));
+  diffuseColor.a = mix(0.4, 0.94, depthShape);
 
-  // Foam: along the banks, streaked through fast (narrow) stretches, and thin
+  // Foam: along the banks, streaked through fast (narrow) stretches, thin
   // current lines that run the length of the channel so the flow direction
-  // reads at a glance even in calm, wide stretches.
+  // reads at a glance, and more of all three where the water runs genuinely
+  // shallow (real streams foam over shoals/riffles, not over still pools).
   float flow = uTime * vFlowSpeed;
+  float shallowBoost = mix(1.6, 0.8, depthNorm);
   float foamNoise = wNoise(vWaterUv * vec2(4.5, 24.0) + vec2(flow * 0.06, flow * 1.05));
   float bankFoam = smoothstep(0.72, 1.0, edge) * smoothstep(0.35, 0.7, foamNoise);
   float speedFoam = smoothstep(1.15, 1.6, vFlowSpeed) * smoothstep(0.5, 0.85, foamNoise);
   float streakNoise = wNoise(vWaterUv * vec2(1.6, 50.0) + vec2(0.0, flow * 1.6));
   float streakFoam = smoothstep(0.64, 0.82, streakNoise) * 0.5;
-  float foam = clamp(bankFoam + speedFoam + streakFoam, 0.0, 1.0);
+  float foam = clamp((bankFoam + speedFoam + streakFoam) * shallowBoost, 0.0, 1.0);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.88, 0.86), foam * 0.7);
   diffuseColor.a = max(diffuseColor.a, foam * 0.85);
 }`,
@@ -266,7 +237,7 @@ function createWaterMaterial(): THREE.MeshStandardMaterial {
       );
   };
 
-  material.customProgramCacheKey = () => 'river-water-v3';
+  material.customProgramCacheKey = () => 'river-water-v4';
   return material;
 }
 

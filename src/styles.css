@@ -109,153 +109,6 @@ body {
   font-weight: 600;
 }
 
-/* ---- Top-left menu cluster ----------------------------------------------
-   Two small icon buttons only — no full-width bar. Everything else (mode
-   switch, reset, language, layer toggles) lives behind them, closed by
-   default, and opens only on demand. -------------------------------------- */
-
-.menu-cluster {
-  position: fixed;
-  top: var(--sp-4);
-  left: var(--sp-4);
-  z-index: 15;
-  display: flex;
-  gap: var(--sp-2);
-  pointer-events: auto;
-}
-
-.icon-btn {
-  width: 36px;
-  height: 36px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow);
-  color: var(--text);
-  cursor: pointer;
-  transition: color 0.18s var(--ease-out), border-color 0.18s var(--ease-out);
-}
-
-.icon-btn:hover {
-  color: var(--accent);
-}
-
-.icon-btn[aria-expanded='true'] {
-  color: var(--accent);
-  border-color: var(--accent-line);
-}
-
-.icon-btn svg {
-  width: 18px;
-  height: 18px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.menu-anchor {
-  position: relative;
-}
-
-.dropdown {
-  position: absolute;
-  top: calc(100% + var(--sp-2));
-  left: 0;
-  width: max-content;
-  min-width: 200px;
-  padding: var(--sp-4);
-  animation: dropdown-in 180ms var(--ease-out);
-}
-
-@keyframes dropdown-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.menu-app-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-  margin: 0;
-}
-
-.menu-app-subtitle {
-  font-size: 12px;
-  color: var(--text-faint);
-  margin: 2px 0 0;
-}
-
-.menu-divider {
-  height: 1px;
-  background: var(--hairline);
-  margin: var(--sp-3) 0;
-  border: none;
-}
-
-.menu-section-label {
-  display: block;
-  font-size: 12px;
-  color: var(--text-faint);
-  font-weight: 600;
-  margin: 0 0 var(--sp-2);
-}
-
-/* ---- Mode switch / reset / language (now inside the menu dropdown) ------ */
-
-.mode-switch {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.mode-btn,
-.tool-btn {
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--text);
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: var(--sp-2) var(--sp-3);
-  cursor: pointer;
-  white-space: nowrap;
-  text-align: start;
-  transition: background 0.18s var(--ease-out), color 0.18s var(--ease-out);
-}
-
-.mode-btn:hover,
-.tool-btn:hover {
-  background: var(--hairline);
-}
-
-.mode-btn.active {
-  color: var(--accent-ink);
-  background: var(--accent);
-  font-weight: 600;
-}
-
-.mode-switch + .tool-btn {
-  margin-top: var(--sp-2);
-}
-
-.tool-btn.lang {
-  width: 100%;
-  border: 1px solid var(--panel-border);
-  margin-top: var(--sp-3);
-}
-
 /* ---- Task panel (single panel, right side) ------------------------------ */
 
 .task-panel {
@@ -446,87 +299,6 @@ body {
   align-items: flex-start;
 }
 
-/* ---- Layer / view-settings rows (inside the View dropdown) -------------- */
-
-.layers {
-  width: 100%;
-  min-width: 240px;
-  padding: var(--sp-4);
-}
-
-.layer-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  width: 100%;
-  padding: var(--sp-2) 0;
-  border: none;
-  background: none;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 14px;
-  cursor: pointer;
-  border-block-end: 1px solid var(--hairline);
-  text-align: start;
-}
-
-.layer-row:last-child {
-  border-block-end: none;
-}
-
-.switch {
-  position: relative;
-  width: 34px;
-  height: 19px;
-  flex: none;
-  border-radius: 999px;
-  background: #e2ddce;
-  border: 1px solid var(--panel-border);
-  transition: background 0.18s var(--ease-out);
-}
-
-.switch::after {
-  content: '';
-  position: absolute;
-  inset-block-start: 2px;
-  inset-inline-start: 2px;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform 0.18s var(--ease-out), background 0.18s var(--ease-out);
-}
-
-.layer-row[aria-pressed='true'] .switch {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.layer-row[aria-pressed='true'] .switch::after {
-  transform: translateX(15px);
-}
-
-[dir='rtl'] .layer-row[aria-pressed='true'] .switch::after {
-  transform: translateX(-15px);
-}
-
-.layer-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.layer-name {
-  font-weight: 400;
-  color: var(--text);
-}
-
-.layer-desc {
-  font-size: 12px;
-  color: var(--text-faint);
-}
-
 /* ---- Mini-map ------------------------------------------------------------ */
 
 .minimap {
@@ -626,6 +398,12 @@ body {
   pointer-events: none;
 }
 
+/* In guided mode the Previous/Next bar sits at the same bottom-centre spot —
+   lift the hint clear above it instead of letting the two overlap. */
+.radial-hint--guided {
+  inset-block-end: calc(var(--sp-6) + 60px);
+}
+
 .radial-menu {
   position: fixed;
   top: 50%;
@@ -686,6 +464,18 @@ body {
   border-color: var(--accent);
   font-weight: 600;
   transform: translate(-50%, -50%) scale(1.08);
+}
+
+.radial-item-key {
+  margin-inline-start: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.7;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
 }
 
 /* ---- Click-to-start prompt ------------------------------------------------
@@ -768,6 +558,8 @@ body {
   place-items: center;
   padding: var(--sp-6);
   background: rgba(43, 42, 38, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .onb-card {
@@ -800,7 +592,7 @@ body {
 
 .onb-card h1 {
   font-size: 28px;
-  font-weight: 600;
+  font-weight: 800;
   color: var(--text);
   margin: 0 0 var(--sp-2);
 }
@@ -818,6 +610,29 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: var(--sp-8);
   margin-block-end: var(--sp-6);
+}
+
+.onb-interact {
+  margin-block-end: var(--sp-6);
+}
+
+.onb-interact .onb-subhead {
+  margin-block-start: 0;
+}
+
+.onb-subhead {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: var(--sp-4) 0 var(--sp-2);
+}
+
+.onb-subtext {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin: 0;
+  text-align: justify;
 }
 
 .onb-controls,
@@ -934,11 +749,6 @@ kbd {
   padding: 0 var(--sp-2);
 }
 
-.guided-counter {
-  font-size: 12px;
-  color: var(--text-faint);
-}
-
 .guided-title {
   font-size: 15px;
   font-weight: 600;
@@ -969,51 +779,20 @@ kbd {
   cursor: default;
 }
 
-.ghost-btn.exit {
-  color: var(--text-dim);
-  margin-inline-start: var(--sp-1);
-}
-
-/* ---- Demo badge ------------------------------------------------------------ */
-
-.demo-badge {
-  position: fixed;
-  inset-block-end: var(--sp-6);
-  inset-inline: 0;
-  margin-inline: auto;
-  width: max-content;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
-  font-size: 13px;
-  color: var(--text);
-}
-
-.demo-badge .rec-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
+.key-hint {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  color: var(--text-faint);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  vertical-align: 1px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .demo-badge .rec-dot {
-    animation: none;
-  }
-  .dropdown,
   .start-prompt .card,
   .onb-card {
     animation: none;

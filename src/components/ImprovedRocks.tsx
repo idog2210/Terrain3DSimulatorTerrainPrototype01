@@ -1,9 +1,19 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Instances, Instance } from '@react-three/drei';
 import { getHeight, getSlope01, HALF, ROCK_ZONES, moisture01 } from '../utils/terrainHeight';
 import { useOptionalPBR } from '../utils/useOptionalTextures';
 import { makeRockGeometry } from '../utils/rockGeometry';
+import { registerColliders, unregisterColliders } from '../colliderRegistry';
+
+// Unscaled rock geometry averages roughly this radius before per-instance scale
+// (see rockGeometry.ts's radiusBase/radiusAmplitude) — used to turn a placement's
+// scale into an approximate ground-plane collision radius.
+const ROCK_RADIUS_FACTOR = 0.8;
+const COLLIDER_OWNER = 'rocks';
+// Rocks poking above the ground by less than this are a step, not a wall — the
+// player walks up onto them instead of being blocked.
+const STEP_HEIGHT = 0.65;
 
 /**
  * Boulders and medium rocks built from several noise-displaced icosahedron
@@ -116,6 +126,35 @@ export default function ImprovedRocks() {
   const flat = !rockTex?.normalMap;
   const hasAlbedo = !!(rockTex && rockTex.map);
 
+  // Each variant's own unscaled peak height (local space), used below to find
+  // each instance's real world-space apex.
+  const geometryTopY = useMemo(
+    () =>
+      geometries.map((g) => {
+        g.computeBoundingBox();
+        return g.boundingBox ? g.boundingBox.max.y : 1;
+      }),
+    [geometries],
+  );
+
+  useEffect(() => {
+    registerColliders(
+      COLLIDER_OWNER,
+      placements.map((p) => {
+        const groundY = getHeight(p.position[0], p.position[2]);
+        const topY = p.position[1] + geometryTopY[p.variant] * p.scale[1];
+        return {
+          x: p.position[0],
+          z: p.position[2],
+          radius: ((p.scale[0] + p.scale[2]) / 2) * ROCK_RADIUS_FACTOR,
+          topY,
+          climbable: topY - groundY < STEP_HEIGHT,
+        };
+      }),
+    );
+    return () => unregisterColliders(COLLIDER_OWNER);
+  }, [placements, geometryTopY]);
+
   return (
     <group>
       {geometries.map((geo, gi) => (
@@ -136,6 +175,11 @@ export default function ImprovedRocks() {
             map={rockTex?.map}
             normalMap={rockTex?.normalMap}
             roughnessMap={rockTex?.roughnessMap}
+            // Single-sided (default) culls backfaces, so a camera that clips
+            // into a rock's lumpy silhouette sees straight through the mesh
+            // to the sky instead of its interior surface. Double-siding keeps
+            // it looking solid from inside too.
+            side={THREE.DoubleSide}
           />
           {byVariant[gi].map((r, i) => (
             <Instance

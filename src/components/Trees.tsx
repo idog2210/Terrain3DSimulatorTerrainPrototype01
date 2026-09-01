@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Instances, Instance } from '@react-three/drei';
@@ -13,6 +13,12 @@ import {
   FEATURES,
 } from '../utils/terrainHeight';
 import { useOptionalPBR, type PBRSet } from '../utils/useOptionalTextures';
+import { registerColliders, unregisterColliders } from '../colliderRegistry';
+
+// The root-flare "elephant foot" at the trunk base (see buildTrunkGeometry's
+// flareAmp) widens it beyond trunkR — this factor approximates that for collision.
+const TRUNK_FLARE_FACTOR = 1.15;
+const COLLIDER_OWNER = 'trees';
 
 /**
  * Dry/Mediterranean tree scatter: three low-poly species (umbrella pine,
@@ -196,58 +202,98 @@ function mergeLobes(lobes: Lobe[]): THREE.BufferGeometry {
   return merged;
 }
 
-/** Two offset cone lobes (a bigger + a smaller) so a pine canopy reads as a clump
- * rather than one symmetric cone; gaps between lobes let branch structure/trunk show. */
+/** Three tiered, tightly-overlapping cone lobes (biggest at the base, shrinking and
+ * rising toward the top) so a pine canopy reads as layered branch whorls fused into
+ * one dense mass, instead of two loosely-spaced identical cones. */
 function buildPineFoliageVariant(seed: number): THREE.BufferGeometry {
   const baseAngle = seed * 0.7;
-  const lobes: Lobe[] = [0.85, 0.68].map((scale, i) => {
+  const lobes: Lobe[] = [0.95, 0.78, 0.6].map((scale, i) => {
     const angle = baseAngle + i * GOLDEN_ANGLE;
-    const radius = 0.3;
-    const geo = makeConeFoliageGeometry(9, 5, seed + i * 19, 0.22);
-    const offset = new THREE.Vector3(Math.cos(angle) * radius, jitter(seed + i * 7, 0.12), Math.sin(angle) * radius);
+    const radius = 0.18;
+    const geo = makeConeFoliageGeometry(9, 6, seed + i * 19, 0.27);
+    const offset = new THREE.Vector3(
+      Math.cos(angle) * radius,
+      i * 0.24 + jitter(seed + i * 7, 0.1),
+      Math.sin(angle) * radius,
+    );
     return { geo, offset, scale };
   });
   return mergeLobes(lobes);
 }
 
-/** Three offset icosahedron lobes for a broad, dense, overlapping oak-scrub dome. */
+/** Five tightly-overlapping icosahedron lobes, each flattened vertically, so an oak
+ * canopy fuses into one broad, dense, flat-topped dome instead of a few separated
+ * round blobs on visible stalks. */
 function buildOakFoliageVariant(seed: number): THREE.BufferGeometry {
   const baseAngle = seed * 0.53;
-  const lobes: Lobe[] = [0.8, 0.7, 0.62].map((scale, i) => {
+  const scales = [0.82, 0.74, 0.7, 0.62, 0.58];
+  const lobes: Lobe[] = scales.map((scale, i) => {
     const angle = baseAngle + i * GOLDEN_ANGLE;
-    const radius = 0.4;
+    const radius = 0.24;
     const geo = makeIcoFoliageGeometry(1, seed + i * 23);
-    const offset = new THREE.Vector3(Math.cos(angle) * radius, jitter(seed + i * 11, 0.15), Math.sin(angle) * radius);
+    geo.scale(1, 0.72, 1); // flatten into a broad, flat-topped dome instead of a round ball
+    const offset = new THREE.Vector3(Math.cos(angle) * radius, jitter(seed + i * 11, 0.08), Math.sin(angle) * radius);
     return { geo, offset, scale };
   });
   return mergeLobes(lobes);
 }
 
-/** Single spire (a multi-lobe cypress would break its narrow silhouette), but with
- * a height-correlated bulge/pinch profile layered on top of the radial noise for a
- * "flame" taper instead of one smooth cone. */
+/** Three stacked, shrinking cone tiers (each keeping the "flame" bulge/pinch profile)
+ * so a cypress spire reads as fused, slightly irregular foliage masses rather than one
+ * smooth primitive, while staying narrow enough to keep its columnar silhouette. */
 function buildCypressFoliageVariant(seed: number): THREE.BufferGeometry {
-  return makeConeFoliageGeometry(9, 6, seed, 0.14, 0.15, 2.5);
+  const tiers: Array<{ y: number; scale: number }> = [
+    { y: -0.3, scale: 0.9 },
+    { y: 0.08, scale: 0.72 },
+    { y: 0.44, scale: 0.48 },
+  ];
+  const lobes: Lobe[] = tiers.map((t, i) => {
+    const geo = makeConeFoliageGeometry(8, 5, seed + i * 17, 0.16, 0.1, 2.2);
+    const offset = new THREE.Vector3(jitter(seed + i * 13, 0.05), t.y, jitter(seed + i * 13 + 5, 0.05));
+    return { geo, offset, scale: t.scale };
+  });
+  return mergeLobes(lobes);
 }
 
 const TRUNK_SEED = 17;
 
-/** Shared trunk geometry: root-flare "elephant foot" skirt at the base, faint
- * bark-ridge noise (so the low-poly cylinder doesn't read perfectly smooth), and
- * baked ambient-occlusion vertex colors (darker at ground contact and under the
- * canopy seam). Purely analytic (y-based) AO, not noise, so it doesn't visibly
- * repeat across the many instances sharing this one geometry. */
-function makeTrunkGeometry(): THREE.BufferGeometry {
-  const geo = new THREE.CylinderGeometry(1, 1.25, 1, 10);
+interface TrunkOptions {
+  radialSegments: number;
+  heightSegments: number;
+  topRadius: number;
+  bottomRadius: number;
+  seed: number;
+  flareAmp: number;
+  ridgeAmp: number;
+  ridgeFreq: number;
+  bendAmp: number;
+  bendFreq: number;
+}
+
+/** Generic trunk baker: root-flare "elephant foot" skirt at the base, bark-ridge
+ * noise, a gentle height-correlated lean/bend (needs real height subdivisions to
+ * show — the old single-segment cylinder had none, which is why it read as a
+ * perfect primitive), and baked ambient-occlusion vertex colors (darker at ground
+ * contact and under the canopy seam). Purely analytic (y-based) AO, not noise, so
+ * it doesn't visibly repeat across the many instances sharing this one geometry.
+ * Each per-instance tree still gets a distinct look for free: the bend direction
+ * spins with that instance's random rotationY, since the whole shared geometry is
+ * rotated per Instance. */
+function buildTrunkGeometry(opts: TrunkOptions): THREE.BufferGeometry {
+  const { radialSegments, heightSegments, topRadius, bottomRadius, seed, flareAmp, ridgeAmp, ridgeFreq, bendAmp, bendFreq } =
+    opts;
+  const geo = new THREE.CylinderGeometry(topRadius, bottomRadius, 1, radialSegments, heightSegments);
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const v = new THREE.Vector3();
   const colors = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
     const flareT = THREE.MathUtils.clamp((-0.28 - v.y) / 0.22, 0, 1);
-    let r = 1 + 0.5 * flareT * flareT;
-    r *= 1 + (fbm(v.y * 4 + TRUNK_SEED, v.x * 3 - TRUNK_SEED) - 0.5) * 2 * 0.05;
-    pos.setXYZ(i, v.x * r, v.y, v.z * r);
+    let r = 1 + flareAmp * flareT * flareT;
+    r *= 1 + (fbm(v.y * ridgeFreq + seed, v.x * 3 - seed) - 0.5) * 2 * ridgeAmp;
+    const bendT = THREE.MathUtils.smoothstep(v.y, -0.5, 0.5);
+    const bend = Math.sin(v.y * bendFreq + seed) * bendAmp * bendT;
+    pos.setXYZ(i, v.x * r + bend, v.y, v.z * r);
 
     const baseAO = THREE.MathUtils.smoothstep(v.y, -0.5, -0.38);
     const topAO = 1 - THREE.MathUtils.smoothstep(v.y, 0.4, 0.5);
@@ -259,6 +305,91 @@ function makeTrunkGeometry(): THREE.BufferGeometry {
   geo.computeVertexNormals();
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   return geo;
+}
+
+/** Chunkier, columnar trunk with a subtle organic lean — reads as a real conifer
+ * bole instead of a thin uniform pole. */
+function makePineTrunkGeometry(): THREE.BufferGeometry {
+  return buildTrunkGeometry({
+    radialSegments: 9,
+    heightSegments: 6,
+    topRadius: 0.68,
+    bottomRadius: 1.15,
+    seed: TRUNK_SEED,
+    flareAmp: 0.5,
+    ridgeAmp: 0.075,
+    ridgeFreq: 4.5,
+    bendAmp: 0.05,
+    bendFreq: 1.7,
+  });
+}
+
+/** Slender, fluted trunk with a faint S-bend — stays thin enough to keep the
+ * cypress's upright spire identity while no longer reading as a dead-straight
+ * primitive. */
+function makeCypressTrunkGeometry(): THREE.BufferGeometry {
+  return buildTrunkGeometry({
+    radialSegments: 8,
+    heightSegments: 6,
+    topRadius: 0.58,
+    bottomRadius: 0.92,
+    seed: TRUNK_SEED + 41,
+    flareAmp: 0.38,
+    ridgeAmp: 0.1,
+    ridgeFreq: 6,
+    bendAmp: 0.035,
+    bendFreq: 2.3,
+  });
+}
+
+/** Forked/buttressed oak trunk: a thick main bole plus two shorter sub-trunks that
+ * pivot outward from the shared base (same one-time-bake matrix technique as
+ * mergeLobes), giving the multi-leader gnarled look of a mature oak instead of one
+ * straight tapered cylinder. */
+function makeOakTrunkGeometry(): THREE.BufferGeometry {
+  const main = buildTrunkGeometry({
+    radialSegments: 10,
+    heightSegments: 6,
+    topRadius: 0.78,
+    bottomRadius: 1.35,
+    seed: TRUNK_SEED + 5,
+    flareAmp: 0.7,
+    ridgeAmp: 0.065,
+    ridgeFreq: 3.2,
+    bendAmp: 0.055,
+    bendFreq: 1.3,
+  });
+
+  const forkAngles = [0.85, -2.35];
+  const subs = forkAngles.map((angle, i) => {
+    const sub = buildTrunkGeometry({
+      radialSegments: 7,
+      heightSegments: 5,
+      topRadius: 0.42,
+      bottomRadius: 0.68,
+      seed: TRUNK_SEED + 11 + i * 7,
+      flareAmp: 0.5,
+      ridgeAmp: 0.08,
+      ridgeFreq: 4,
+      bendAmp: 0.1,
+      bendFreq: 1.1,
+    });
+    const subHeight = 0.58;
+    sub.scale(0.85, subHeight, 0.85);
+    // pivot the lean around the sub-trunk's own base (not the geometry's center) so it
+    // fans outward from the shared root instead of rotating in place
+    sub.translate(0, subHeight / 2, 0);
+    sub.rotateX(0.4);
+    sub.rotateY(angle);
+    sub.translate(0, -0.5, 0); // reseat that base at the main trunk's base (y = -0.5)
+    return sub;
+  });
+
+  const identityOffset = new THREE.Vector3(0, 0, 0);
+  return mergeLobes([
+    { geo: main, offset: identityOffset, scale: 1 },
+    ...subs.map((geo) => ({ geo, offset: identityOffset, scale: 1 })),
+  ]);
 }
 
 const FOLIAGE_SWAY_GLSL = /* glsl */ `
@@ -341,21 +472,27 @@ function buildPlacements(): Placement[] {
     const hero = rng() < 0.1;
     const base = hero ? 1.55 + rng() * 0.55 : 1.05 + rng() * 0.55;
 
-    const trunkH = base * (species === 'cypress' ? 4.0 : species === 'oak' ? 2.4 : 3.2);
-    const trunkR = base * (species === 'oak' ? 0.185 : 0.13);
+    // Oak trunk is shorter than before: a mature oak forks and spreads wide low down
+    // rather than rising tall before branching, matching the wide-canopy reference look.
+    const trunkH = base * (species === 'cypress' ? 4.0 : species === 'oak' ? 2.2 : 3.0);
+    // All three species got chunkier boles (was a flat 0.13 for pine/cypress, 0.185 for oak).
+    const trunkR = base * (species === 'oak' ? 0.24 : species === 'pine' ? 0.17 : 0.14);
     const foliageR =
       species === 'pine'
-        ? base * (1.05 + rng() * 0.35)
+        ? base * (1.15 + rng() * 0.35)
         : species === 'oak'
-          ? base * (0.95 + rng() * 0.35)
-          : base * (0.55 + rng() * 0.2);
-    const foliageH = species === 'pine' ? base * 1.3 : species === 'oak' ? base * 1.6 : base * 3.3;
+          ? base * (1.25 + rng() * 0.4) // wide, spreading crown instead of a tight round dome
+          : base * (0.62 + rng() * 0.22);
+    // Oak canopy is flatter/shorter relative to its width now that it's built from more,
+    // tighter-packed lobes — a wide flat dome, not a tall round one.
+    const foliageH = species === 'pine' ? base * 1.15 : species === 'oak' ? base * 1.15 : base * 3.0;
     // Canopy anchored at/above the trunk top (not swallowing its upper third) so a
     // taller trunk actually reads as taller. Cypress specifically: canopy centered
     // higher up a taller spire, with foliageH raised in lockstep, so the cone tip
     // reliably clears the trunk top (~7-8% margin, stable across the whole `base`
-    // range) instead of the bare trunk poking above a too-short canopy.
-    const foliageY = species === 'cypress' ? trunkH * 0.66 : species === 'oak' ? trunkH * 0.97 : trunkH * 1.0;
+    // range) instead of the bare trunk poking above a too-short canopy. Oak sits a
+    // little lower now so the wider canopy envelops the forked trunk top/seam.
+    const foliageY = species === 'cypress' ? trunkH * 0.62 : species === 'oak' ? trunkH * 0.85 : trunkH * 0.92;
 
     // Off-axis canopy jitter (skip cypress to keep its narrow spire silhouette) so
     // the canopy isn't perfectly coaxial with the trunk — breaks the "blob glued to
@@ -449,7 +586,28 @@ export default function Trees() {
     return map;
   }, [placements]);
 
-  const trunkGeo = useMemo(() => makeTrunkGeometry(), []);
+  useEffect(() => {
+    registerColliders(
+      COLLIDER_OWNER,
+      placements.map((p) => ({
+        x: p.ground[0],
+        z: p.ground[2],
+        radius: p.trunkScale[0] * TRUNK_FLARE_FACTOR,
+      })),
+    );
+    return () => unregisterColliders(COLLIDER_OWNER);
+  }, [placements]);
+
+  // Each species gets its own trunk geometry now (forked oak, chunky pine, fluted
+  // cypress) instead of all three sharing one straight cylinder scaled per-instance.
+  const trunkGeoBySpecies = useMemo<Record<Species, THREE.BufferGeometry>>(
+    () => ({
+      pine: makePineTrunkGeometry(),
+      oak: makeOakTrunkGeometry(),
+      cypress: makeCypressTrunkGeometry(),
+    }),
+    [],
+  );
 
   // A handful of compound (multi-lobe), noise-displaced foliage geometries per
   // species so canopies vary instance-to-instance instead of every tree sharing
@@ -491,7 +649,7 @@ export default function Trees() {
           <group key={sp}>
             <Instances
               key={hasBarkAlbedo ? 'trunk-tex' : 'trunk-proc'}
-              geometry={trunkGeo}
+              geometry={trunkGeoBySpecies[sp]}
               limit={Math.max(1, items.length)}
               castShadow
               receiveShadow

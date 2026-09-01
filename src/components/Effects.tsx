@@ -12,7 +12,7 @@ import { useSimStore } from '../store';
 
 /**
  * Cinematic post-processing. Order matters:
- *   N8AO (contact AO) → Bloom (HDR highlights only) → [DOF in demo] →
+ *   N8AO (contact AO) → Bloom (HDR highlights only) → [DOF before start] →
  *   ToneMapping (ACES — the composer disables the renderer's own) →
  *   Vignette → film grain.
  * Kept restrained so it reads as a professional terrain visualization, not a
@@ -20,7 +20,7 @@ import { useSimStore } from '../store';
  * and the brightest sun highlights, not the diffuse terrain.
  */
 export default function Effects() {
-  const demo = useSimStore((s) => s.mode === 'demo');
+  const preStart = useSimStore((s) => !s.started);
 
   return (
     <EffectComposer multisampling={4} depthBuffer>
@@ -41,7 +41,7 @@ export default function Effects() {
         radius={0.7}
         levels={6}
       />
-      {demo ? (
+      {preStart ? (
         <DepthOfField worldFocusDistance={95} worldFocusRange={90} bokehScale={1.3} />
       ) : (
         <></>
